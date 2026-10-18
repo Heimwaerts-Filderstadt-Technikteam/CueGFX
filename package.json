@@ -1,0 +1,98 @@
+{
+  "name": "cuegfx",
+  "productName": "CueGFX",
+  "version": "1.0.0",
+  "description": "Live-Grafik-App für Streams und Broadcast mit Blackmagic DeckLink / UltraStudio Ausgabe (Fill+Key, interner Keyer, Live-Eingang)",
+  "main": "src/main/main.js",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build:decklink": "node scripts/build-decklink.js",
+    "build:ndi": "node scripts/build-ndi.js",
+    "build:native": "node scripts/build-native.js",
+    "test": "node scripts/smoke-test.js",
+    "dist:mac": "node scripts/build-native.js --optional && electron-builder --mac",
+    "dist:mac:local": "node scripts/build-native.js --optional && electron-builder --mac -c.mac.identity=-",
+    "dist:mac:unsigned": "node scripts/build-native.js --optional && electron-builder --mac -c.mac.identity=null",
+    "dist:win": "node scripts/build-native.js --optional && electron-builder --win",
+    "dist:linux": "node scripts/build-native.js --optional && electron-builder --linux",
+    "start:server": "node src/server/standalone.js"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0",
+    "electron-builder": "^26.17.0",
+    "node-gyp": "^13.1.0"
+  },
+  "build": {
+    "appId": "io.cuegfx.app",
+    "productName": "CueGFX",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "public/**/*",
+      "package.json",
+      "native/decklink/build/Release/cuegfx_decklink.node",
+      "native/ndi/build/Release/cuegfx_ndi.node",
+      "!native/decklink/gen/**"
+    ],
+    "asarUnpack": [
+      "native/decklink/build/Release/*.node",
+      "native/ndi/build/Release/*.node"
+    ],
+    "mac": {
+      "category": "public.app-category.video",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "CueGFX stellt Grafik-Ausgaben und die Fernsteuerung im lokalen Netzwerk bereit."
+      },
+      "icon": "build/icon.png",
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "hardenedRuntime": true
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "AudioVideo",
+      "executableName": "cuegfx",
+      "desktop": {
+        "entry": {
+          "Name": "CueGFX",
+          "Comment": "Live-Grafiken für Streams und Broadcast",
+          "Categories": "AudioVideo;Video;"
+        }
+      },
+      "icon": "build/icon.png",
+      "maintainer": "CueGFX <support@cuegfx.app>"
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "author": {
+    "name": "CueGFX",
+    "email": "support@cuegfx.app"
+  },
+  "homepage": "https://github.com/cuegfx/cuegfx"
+}

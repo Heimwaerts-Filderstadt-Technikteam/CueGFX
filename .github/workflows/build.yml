@@ -1,0 +1,95 @@
+# CueGFX – baut macOS (arm64 + x64), Windows und Linux auf GitHub-Runnern.
+#
+# Start:  Reiter "Actions" → "Build CueGFX" → "Run workflow"
+#         oder automatisch beim Push eines Tags wie v1.0.0 (dann mit GitHub-Release)
+#
+# DeckLink-SDK (darf NICHT öffentlich liegen!):
+#   Secret DECKLINK_SDK_URL = Direkt-Download-Link zu deinem SDK-ZIP
+#   (z. B. privater Cloud-Link). Ohne Secret wird ohne DeckLink gebaut.
+name: Build CueGFX
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest,   name: mac-arm64, cmd: 'npx electron-builder --mac --arm64 -c.mac.identity=-' }
+          - { os: macos-15-intel, name: mac-x64,   cmd: 'npx electron-builder --mac --x64 -c.mac.identity=-' }
+          - { os: windows-latest, name: windows,   cmd: 'npx electron-builder --win' }
+          - { os: ubuntu-22.04,   name: linux,     cmd: 'npx electron-builder --linux' }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package.json
+
+      - name: Linux-Pakete
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential rpm fakeroot
+
+      - name: DeckLink-SDK laden (optional)
+        shell: bash
+        env:
+          SDK_URL: ${{ secrets.DECKLINK_SDK_URL }}
+        run: |
+          if [ -z "$SDK_URL" ]; then echo "Kein DECKLINK_SDK_URL-Secret – baue ohne DeckLink."; exit 0; fi
+          mkdir -p sdk/decklink
+          curl -fsSL "$SDK_URL" -o sdk/decklink.zip
+          unzip -q sdk/decklink.zip -d sdk/decklink
+          rm sdk/decklink.zip
+
+      - name: Abhängigkeiten
+        run: npm install --no-audit --no-fund
+
+      - name: Native Module (DeckLink + NDI)
+        run: node scripts/build-native.js --optional
+
+      - name: Tests
+        run: npm test
+
+      - name: App bauen
+        run: ${{ matrix.cmd }} --publish never
+
+      - name: Artefakte hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: CueGFX-${{ matrix.name }}
+          retention-days: 14
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: out/*

@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<title>Mitmachen</title>
+<style>
+  :root { --bg: #0f1115; --card: #181b22; --card2: #1f232c; --line: #2a2f39; --fg: #eef1f5; --fg2: #a2aab6; --fg3: #6f7886; --acc: #e11d48; --acc2: #f59e0b; --ok: #1fb85a; --r: 14px; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding-bottom: 40px; }
+  .top { position: sticky; top: 0; z-index: 5; background: rgba(15, 17, 21, .92); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .top .in { max-width: 620px; margin: 0 auto; padding: 14px 16px 0; }
+  h1 { font-size: 20px; margin: 0 0 10px; }
+  .tabs { display: flex; gap: 4px; }
+  .tabs button { flex: 1; background: none; border: 0; color: var(--fg2); font: 600 15px system-ui, sans-serif; padding: 10px 6px 12px; border-bottom: 3px solid transparent; cursor: pointer; }
+  .tabs button.on { color: var(--fg); border-bottom-color: var(--acc); }
+  [hidden] { display: none !important; }
+  .tabs .badge { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 99px; background: var(--acc); color: #fff; font-size: 12px; margin-left: 4px; }
+  main { max-width: 620px; margin: 0 auto; padding: 14px 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; margin-bottom: 12px; }
+  .ask textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font: inherit; }
+  .ask textarea:focus, input:focus { outline: none; border-color: var(--acc); }
+  .ask .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .ask input[type=text] { flex: 1; min-width: 0; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font: inherit; }
+  .count { font-size: 12px; color: var(--fg3); margin-left: auto; }
+  button.primary { border: 0; border-radius: 10px; padding: 12px 18px; font: 700 15px system-ui, sans-serif; background: var(--acc); color: #fff; cursor: pointer; }
+  button.primary:disabled { opacity: .5; }
+  .msg { padding: 10px 12px; border-radius: 10px; margin-top: 10px; font-size: 14px; display: none; }
+  .msg.ok { display: block; background: #102a1b; color: #9ff0bf; } .msg.err { display: block; background: #3a1219; color: #ffb3bd; } .msg.info { display: block; background: #2b2410; color: #ffd27a; }
+  .bar { display: flex; align-items: center; gap: 8px; margin: 16px 2px 8px; color: var(--fg2); font-size: 14px; }
+  .bar .sp { flex: 1; }
+  .seg { display: inline-flex; background: var(--card); border: 1px solid var(--line); border-radius: 99px; padding: 3px; }
+  .seg button { background: none; border: 0; color: var(--fg2); padding: 5px 12px; border-radius: 99px; font: 600 13px system-ui, sans-serif; cursor: pointer; }
+  .seg button.on { background: var(--card2); color: var(--fg); }
+  .q { display: flex; gap: 12px; align-items: flex-start; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 12px 12px 14px; margin-bottom: 8px; transition: border-color .2s; }
+  .q.active { border-color: var(--acc2); box-shadow: 0 0 0 1px var(--acc2) inset; }
+  .q .body { flex: 1; min-width: 0; }
+  .q .text { white-space: pre-wrap; word-break: break-word; }
+  .q .meta { font-size: 12.5px; color: var(--fg3); margin-top: 4px; }
+  .q .live { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #111; background: var(--acc2); border-radius: 99px; padding: 1px 8px; margin-bottom: 6px; }
+  .like { flex: none; display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 48px; background: var(--card2); border: 1px solid var(--line); border-radius: 10px; color: var(--fg2); padding: 6px 4px; cursor: pointer; font: 700 14px system-ui, sans-serif; }
+  .like svg { width: 20px; height: 20px; }
+  .like.on { color: var(--acc); border-color: var(--acc); background: #2a1219; }
+  .like:disabled { cursor: default; opacity: .6; }
+  .mine { border-style: dashed; opacity: .85; }
+  .tag { font-size: 11px; border-radius: 99px; padding: 1px 8px; background: #2b2410; color: #ffd27a; font-weight: 700; }
+  details { margin-top: 12px; } summary { cursor: pointer; color: var(--fg2); font-size: 14px; padding: 6px 2px; }
+  .empty { color: var(--fg3); text-align: center; padding: 24px 10px; font-size: 14px; }
+  .closed { color: var(--fg2); font-size: 14px; margin: 0; }
+  /* Umfragen */
+  .poll h2 { font-size: 17px; margin: 0 0 4px; }
+  .poll .sub { color: var(--fg3); font-size: 13px; margin: 0 0 10px; }
+  .opt { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: var(--bg); border: 2px solid var(--line); color: var(--fg); border-radius: 10px; padding: 12px; margin-top: 8px; font: 600 15px system-ui, sans-serif; cursor: pointer; overflow: hidden; }
+  .opt .mark { flex: none; width: 20px; height: 20px; border: 2px solid var(--fg3); border-radius: 50%; display: grid; place-items: center; }
+  .poll.multi .opt .mark { border-radius: 5px; }
+  .opt.chosen { border-color: var(--ok); } .opt.chosen .mark { border-color: var(--ok); background: var(--ok); }
+  .opt.chosen .mark::after { content: '✓'; color: #fff; font-size: 13px; }
+  .opt .res { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(225, 29, 72, .18); transition: width .6s; z-index: 0; }
+  .opt > span { position: relative; z-index: 1; } .opt .pct { margin-left: auto; color: var(--fg2); font-weight: 700; }
+  .stars { display: flex; gap: 6px; justify-content: center; margin: 6px 0; }
+  .stars button { background: none; border: 0; font-size: 38px; line-height: 1; color: #3a404c; cursor: pointer; padding: 2px; }
+  .stars button.on { color: var(--acc2); }
+  .wc { display: flex; gap: 8px; } .wc input { flex: 1; min-width: 0; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font: inherit; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { background: var(--card2); border: 1px solid var(--line); border-radius: 99px; padding: 3px 10px; font-size: 13px; }
+  .cloud { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: center; align-items: center; margin-top: 12px; padding: 8px; background: var(--bg); border-radius: 10px; }
+  .cloud span { font-weight: 800; color: var(--acc2); }
+  .avg { text-align: center; color: var(--fg2); font-size: 14px; margin-top: 6px; }
+  .thanks { color: #9ff0bf; font-size: 13.5px; margin-top: 10px; }
+  .off { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); background: #3a1219; color: #ffb3bd; padding: 8px 14px; border-radius: 99px; font-size: 13px; display: none; z-index: 9; }
+</style>
+</head>
+<body>
+<div class="top"><div class="in">
+  <h1 id="title">Mitmachen</h1>
+  <div class="tabs" id="tabs">
+    <button data-tab="qa" class="on">Fragen <span class="badge" id="b-qa" hidden></span></button>
+    <button data-tab="polls">Umfragen <span class="badge" id="b-polls" hidden></span></button>
+  </div>
+</div></div>
+<main>
+  <section id="tab-qa">
+    <div class="card ask" id="ask">
+      <textarea id="q" placeholder="Stell deine Frage …" maxlength="300"></textarea>
+      <div class="row">
+        <input type="text" id="name" maxlength="60" autocomplete="name" placeholder="Dein Name (optional)">
+        <button class="primary" id="send">Senden</button>
+      </div>
+      <div class="row" style="margin-top:4px"><span class="count"><span id="cnt">0</span>/<span id="max">300</span></span></div>
+      <div class="msg" id="qa-msg"></div>
+    </div>
+    <p class="closed card" id="qa-closed" hidden>Fragen sind gerade geschlossen.</p>
+    <div id="mine"></div>
+    <div class="bar" id="qbar"><span id="qcount"></span><span class="sp"></span>
+      <div class="seg"><button data-sort="likes" class="on">Beliebt</button><button data-sort="newest">Neu</button></div>
+    </div>
+    <div id="qlist"></div>
+    <details id="answered" hidden><summary id="answered-sum">Beantwortet</summary><div id="alist"></div></details>
+  </section>
+  <section id="tab-polls" hidden><div id="polls"></div></section>
+</main>
+<div class="off" id="off">Verbindung wird wiederhergestellt …</div>
+<script src="/shared/client.js"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s === undefined || s === null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const store = { get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (_) { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} } };
+  let voter = store.get('cue.voter', '');
+  if (!voter) { voter = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)).replace(/[^\w-]/g, ''); store.set('cue.voter', voter); }
+  const client = new CueClient({ role: 'audience', params: { voter } });
+  let pub = null, me = { mine: [], liked: [], votes: {} }, sort = store.get('cue.sort', 'likes'), tab = 'qa', tabChosen = false;
+  const draft = {}; // Mehrfachauswahl vor dem Absenden
+  const pollMsg = {}; // Hinweise je Umfrage (überstehen das Neuzeichnen)
+  $('name').value = store.get('cue.name', '');
+  const heart = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 21h3V9H2v12zm20-11c0-1.1-.9-2-2-2h-6.3l1-4.6v-.3c0-.4-.2-.8-.4-1.1L13.2 1 6.6 7.6C6.2 7.9 6 8.4 6 9v10c0 1.1.9 2 2 2h9c.8 0 1.5-.5 1.8-1.2l3-7.1c.1-.2.2-.5.2-.7v-2z"/></svg>';
+  const ago = (ts) => { const s = Math.max(0, (client.now() - ts) / 1000); if (s < 60) return 'gerade eben'; if (s < 3600) return `vor ${Math.floor(s / 60)} Min.`; return `vor ${Math.floor(s / 3600)} Std.`; };
+
+  function setTab(t) {
+    tab = t;
+    document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
+    $('tab-qa').hidden = t !== 'qa'; $('tab-polls').hidden = t !== 'polls';
+  }
+  $('tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { tabChosen = true; setTab(b.dataset.tab); } });
+  document.querySelectorAll('.seg button').forEach((b) => { b.classList.toggle('on', b.dataset.sort === sort); b.addEventListener('click', () => { sort = b.dataset.sort; store.set('cue.sort', sort); document.querySelectorAll('.seg button').forEach((x) => x.classList.toggle('on', x === b)); renderQA(); }); });
+
+  client.on('audience', (m) => {
+    pub = m;
+    $('title').textContent = m.title || 'Mitmachen';
+    document.title = m.title || 'Mitmachen';
+    const qa = m.qa;
+    $('ask').hidden = !qa.open; $('qa-closed').hidden = !!qa.open;
+    $('q').placeholder = qa.title || 'Stell deine Frage …';
+    $('q').maxLength = qa.maxLength || 300; $('max').textContent = qa.maxLength || 300;
+    $('name').placeholder = qa.requireName ? 'Dein Name (Pflicht)' : 'Dein Name (optional)';
+    // Wenn nur Umfragen laufen, direkt dorthin
+    if (!tabChosen) setTab(!qa.open && m.polls.length ? 'polls' : 'qa');
+    $('b-polls').hidden = !m.polls.length; $('b-polls').textContent = m.polls.length;
+    renderQA(); renderPolls();
+  });
+  client.on('audienceMe', (m) => { me = m; renderQA(); renderPolls(); });
+  client.on('close', () => { $('off').style.display = 'block'; });
+  client.on('open', () => { $('off').style.display = 'none'; });
+
+  /* ---------- Q&A ---------- */
+  function qHtml(q, extra) {
+    const liked = me.liked.includes(q.id);
+    const canLike = pub.qa.allowLikes && !q.resolved;
+    return `<div class="q${q.active ? ' active' : ''}">
+      <div class="body">${q.active ? '<div class="live">Wird gerade beantwortet</div>' : ''}<div class="text">${esc(q.text)}</div>
+      <div class="meta">${esc(q.author)} · ${ago(q.ts)}${extra || ''}</div></div>
+      ${pub.qa.allowLikes ? `<button class="like${liked ? ' on' : ''}" data-like="${esc(q.id)}" ${canLike ? '' : 'disabled'} aria-label="Gefällt mir">${heart}<span>${q.likes || 0}</span></button>` : ''}
+    </div>`;
+  }
+  function renderQA() {
+    if (!pub) return;
+    const live = pub.questions.filter((q) => !q.resolved);
+    const done = pub.questions.filter((q) => q.resolved);
+    const sorted = live.slice().sort(sort === 'newest' ? (a, b) => b.ts - a.ts : (a, b) => (b.likes - a.likes) || (a.ts - b.ts));
+    const act = sorted.find((q) => q.active);
+    const list = act ? [act].concat(sorted.filter((q) => q !== act)) : sorted;
+    const show = pub.qa.showQuestions;
+    $('qbar').style.display = show ? '' : 'none';
+    $('qcount').textContent = `${live.length} Frage${live.length === 1 ? '' : 'n'}`;
+    $('qlist').innerHTML = !show ? '' : list.length ? list.map((q) => qHtml(q)).join('') : '<div class="empty">Noch keine Fragen. Sei die erste Person, die fragt!</div>';
+    $('answered').hidden = !show || !done.length;
+    $('answered-sum').textContent = `Beantwortet (${done.length})`;
+    $('alist').innerHTML = done.sort((a, b) => b.ts - a.ts).map((q) => qHtml(q)).join('');
+    const pending = (me.mine || []).filter((q) => q.status === 'pending');
+    $('mine').innerHTML = pending.map((q) => `<div class="q mine"><div class="body"><div class="text">${esc(q.text)}</div><div class="meta"><span class="tag">Wird geprüft</span> · nur für dich sichtbar</div></div></div>`).join('');
+    const myLive = (me.mine || []).filter((q) => q.status === 'live' && !q.resolved).length;
+    $('b-qa').hidden = !myLive; $('b-qa').textContent = myLive;
+  }
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-like]');
+    if (!b) return;
+    const id = b.dataset.like;
+    // sofort reagieren, Server bestätigt
+    const on = !b.classList.contains('on');
+    b.classList.toggle('on', on);
+    const n = b.querySelector('span'); n.textContent = Math.max(0, Number(n.textContent) + (on ? 1 : -1));
+    try { await client.cmd('qa.like', { id }); } catch (err) { b.classList.toggle('on', !on); n.textContent = Math.max(0, Number(n.textContent) + (on ? -1 : 1)); }
+  });
+  $('q').addEventListener('input', () => { $('cnt').textContent = $('q').value.length; });
+  $('send').addEventListener('click', async () => {
+    const text = $('q').value.trim(), author = $('name').value.trim(), msg = $('qa-msg');
+    if (!text) { msg.className = 'msg err'; msg.textContent = 'Bitte eine Frage eingeben.'; return; }
+    if (pub && pub.qa.requireName && !author) { msg.className = 'msg err'; msg.textContent = 'Bitte deinen Namen angeben.'; return; }
+    $('send').disabled = true;
+    try {
+      const r = await client.cmd('qa.submit', { text, author });
+      store.set('cue.name', author);
+      $('q').value = ''; $('cnt').textContent = '0';
+      if (r && r.status === 'pending') { msg.className = 'msg info'; msg.textContent = 'Danke! Deine Frage wird kurz geprüft und erscheint dann in der Liste.'; }
+      else { msg.className = 'msg ok'; msg.textContent = 'Danke! Deine Frage ist jetzt in der Liste.'; }
+    } catch (err) { msg.className = 'msg err'; msg.textContent = err.message; }
+    setTimeout(() => { $('send').disabled = false; }, 4000);
+  });
+
+  /* ---------- Umfragen ---------- */
+  function resultsHtml(p) {
+    const r = p.results; if (!r) return '';
+    if (p.type === 'rating') return `<div class="avg">Durchschnitt <b>${String(r.average).replace('.', ',')}</b> von ${p.scale} · ${r.total} Stimmen</div>`;
+    if (p.type === 'wordcloud') {
+      const max = r.words.length ? r.words[0].count : 1;
+      return r.words.length ? `<div class="cloud">${r.words.slice(0, 30).map((w) => `<span style="font-size:${Math.round(13 + (w.count / max) * 20)}px">${esc(w.text)}</span>`).join('')}</div>` : '';
+    }
+    return '';
+  }
+  function renderPolls() {
+    if (!pub) return;
+    const box = $('polls');
+    if (!pub.polls.length) { box.innerHTML = '<div class="empty card">Gerade läuft keine Umfrage.</div>'; return; }
+    const focus = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.wc;
+    const typed = {}; box.querySelectorAll('[data-wc]').forEach((i) => { typed[i.dataset.wc] = i.value; });
+    box.innerHTML = pub.polls.map((p) => {
+      const my = me.votes[p.id];
+      let inner = '', sub = '';
+      if (p.type === 'choice' || p.type === 'multi') {
+        const sel = p.type === 'multi' ? (draft[p.id] || my || []) : (my || []);
+        const res = p.results;
+        const base = res ? (p.type === 'multi' ? Math.max(1, res.respondents || 0) : Math.max(1, res.total)) : 1;
+        sub = p.type === 'multi' ? `Bis zu ${p.maxChoices} Antworten` : 'Eine Antwort wählen';
+        inner = p.options.map((o) => {
+          const v = res ? (res.options.find((x) => x.id === o.id) || {}).votes || 0 : 0;
+          const pct = res ? Math.round((v / base) * 100) : 0;
+          return `<button class="opt${sel.includes(o.id) ? ' chosen' : ''}" data-poll="${esc(p.id)}" data-opt="${esc(o.id)}">${res ? `<i class="res" style="width:${pct}%"></i>` : ''}<span class="mark"></span><span>${esc(o.text)}</span>${res ? `<span class="pct">${pct} %</span>` : ''}</button>`;
+        }).join('') + (p.type === 'multi' ? `<button class="primary" style="width:100%;margin-top:10px" data-submit="${esc(p.id)}">${my ? 'Auswahl ändern' : 'Abstimmen'}</button>` : '');
+      } else if (p.type === 'rating') {
+        sub = 'Tippe auf die Sterne';
+        inner = `<div class="stars">${Array.from({ length: p.scale }, (_, i) => `<button data-poll="${esc(p.id)}" data-rate="${i + 1}" class="${my && i < my ? 'on' : ''}">★</button>`).join('')}</div>`;
+      } else {
+        const mine = my || [];
+        const left = p.maxWords - mine.length;
+        sub = `Bis zu ${p.maxWords} Begriffe`;
+        inner = `<div class="wc"><input type="text" maxlength="30" placeholder="${left > 0 ? 'Begriff eingeben …' : 'Danke!'}" data-wc="${esc(p.id)}" ${left > 0 ? '' : 'disabled'}><button class="primary" data-wcsend="${esc(p.id)}" ${left > 0 ? '' : 'disabled'}>Senden</button></div>` +
+          (mine.length ? `<div class="chips">${mine.map((w) => `<span class="chip">${esc(w)}</span>`).join('')}</div>` : '');
+      }
+      const thanks = my && (p.type !== 'wordcloud' || (my.length >= p.maxWords)) ? '<div class="thanks">✓ Danke für deine Stimme!</div>' : '';
+      const pm = pollMsg[p.id];
+      return `<div class="card poll ${p.type}"><h2>${esc(p.question)}</h2><p class="sub">${sub}</p>${inner}${resultsHtml(p)}${thanks}<div class="msg ${pm ? pm.cls : ''}" data-msg="${esc(p.id)}">${pm ? esc(pm.text) : ''}</div></div>`;
+    }).join('');
+    box.querySelectorAll('[data-wc]').forEach((i) => { if (typed[i.dataset.wc]) i.value = typed[i.dataset.wc]; });
+    if (focus) { const i = box.querySelector(`[data-wc="${CSS.escape(focus)}"]`); if (i) i.focus(); }
+  }
+  async function vote(pollId, args) {
+    try { await client.cmd('poll.vote', Object.assign({ pollId }, args)); delete draft[pollId]; delete pollMsg[pollId]; }
+    catch (err) { pollMsg[pollId] = { cls: 'err', text: err.message }; setTimeout(() => { delete pollMsg[pollId]; renderPolls(); }, 4000); }
+    renderPolls();
+  }
+  $('polls').addEventListener('click', (e) => {
+    const opt = e.target.closest('[data-opt]');
+    if (opt) {
+      const p = pub.polls.find((x) => x.id === opt.dataset.poll);
+      if (p.type === 'multi') {
+        const cur = new Set(draft[p.id] || me.votes[p.id] || []);
+        if (cur.has(opt.dataset.opt)) cur.delete(opt.dataset.opt); else if (cur.size < p.maxChoices) cur.add(opt.dataset.opt);
+        draft[p.id] = [...cur]; renderPolls();
+      } else vote(p.id, { optionId: opt.dataset.opt });
+      return;
+    }
+    const sub = e.target.closest('[data-submit]');
+    if (sub) { vote(sub.dataset.submit, { optionIds: draft[sub.dataset.submit] || me.votes[sub.dataset.submit] || [] }); return; }
+    const rate = e.target.closest('[data-rate]');
+    if (rate) { vote(rate.dataset.poll, { value: Number(rate.dataset.rate) }); return; }
+    const ws = e.target.closest('[data-wcsend]');
+    if (ws) { const i = document.querySelector(`[data-wc="${CSS.escape(ws.dataset.wcsend)}"]`); if (i && i.value.trim()) { const w = i.value; i.value = ''; vote(ws.dataset.wcsend, { words: w }); } }
+  });
+  $('polls').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.dataset.wc) { const w = e.target.value; e.target.value = ''; if (w.trim()) vote(e.target.dataset.wc, { words: w }); }
+  });
+  setInterval(() => { if (tab === 'qa') renderQA(); }, 30000);
+})();
+</script>
+</body>
+</html>

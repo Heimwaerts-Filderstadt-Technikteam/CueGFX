@@ -1,0 +1,10 @@
+node_modules/
+dist/
+native/decklink/build/
+native/decklink/gen/
+sdk/
+companion-module/node_modules/
+companion-module/pkg/
+*.tgz
+.DS_Store
+native/ndi/build/

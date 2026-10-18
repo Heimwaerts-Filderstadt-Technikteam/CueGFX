@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CueGFX</title>
+<link rel="stylesheet" href="/control/control.css">
+<link rel="icon" href="/control/icon.png">
+</head>
+<body>
+<header>
+  <div class="brand"><div class="logo">▶</div><b>CueGFX</b></div>
+  <span class="conn" id="conn" title="Verbindung"></span>
+  <button class="proj-btn" id="proj-btn" title="Projekt"><span id="proj-name">…</span> ▾</button>
+  <nav class="tabs" id="tabs">
+    <button data-tab="graphics" class="on">Grafiken</button>
+    <button data-tab="variables">Variablen</button>
+    <button data-tab="theme">Theme</button>
+    <button data-tab="media">Medien</button>
+    <button data-tab="audience">Publikum <span class="badge" id="qa-badge" hidden>0</span></button>
+    <button data-tab="chat">Chat</button>
+    <button data-tab="outputs">Ausgänge</button>
+    <button data-tab="settings">Einstellungen</button>
+  </nav>
+  <div class="hdr-actions">
+    <button class="btn" id="btn-clear-pvw" title="Vorschau leeren">PVW leeren</button>
+    <button class="btn danger" id="btn-hide-all" title="Alle Grafiken ausblenden (Strg+Rücktaste)">Alles aus</button>
+    <button class="btn take" id="btn-take" title="Vorschau auf Sendung nehmen (Strg+Enter)">TAKE</button>
+  </div>
+</header>
+<main id="main">
+  <section class="pane" id="list-pane">
+    <div class="pane-head">
+      <input class="search" id="search" placeholder="Grafiken suchen …">
+      <button class="btn primary sm" id="btn-add">+ Grafik</button>
+    </div>
+    <div class="glist" id="glist"></div>
+  </section>
+  <section class="pane" id="editor-pane"><div class="pane-body" id="editor"></div></section>
+  <section class="pane" id="monitors">
+    <div class="mon">
+      <div class="mon-h"><span class="tag pvw">VORSCHAU</span></div>
+      <div class="screen pvw" id="scr-pvw"><iframe id="if-pvw" src="/output/preview" title="Vorschau"></iframe></div>
+    </div>
+    <div class="mon">
+      <div class="mon-h"><span class="tag pgm">SENDUNG</span><select id="pgm-out"></select></div>
+      <div class="screen pgm" id="scr-pgm"><iframe id="if-pgm" src="/output/1?audio=0" title="Sendung"></iframe></div>
+      <div class="mon-actions">
+        <button class="btn sm" id="btn-open-out">Ausgang öffnen ↗</button>
+        <button class="btn sm" id="btn-copy-url">URL kopieren</button>
+      </div>
+    </div>
+    <div class="live-list" id="live-list"></div>
+  </section>
+</main>
+<div class="toast-wrap" id="toasts"></div>
+<script src="/shared/graphic-types.js"></script>
+<script src="/shared/client.js"></script>
+<script src="/control/ui.js"></script>
+<script src="/control/builder.js"></script>
+<script src="/control/control.js"></script>
+</body>
+</html>
