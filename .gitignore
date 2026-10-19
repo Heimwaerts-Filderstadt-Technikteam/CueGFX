@@ -2,7 +2,19 @@ node_modules/
 dist/
 native/decklink/build/
 native/decklink/gen/
-sdk/
+# DeckLink-SDK: nur die Header-Ordner werden versioniert (Repo muss privat bleiben!)
+sdk/*
+!sdk/decklink/
+sdk/decklink/**
+!sdk/decklink/Mac/
+!sdk/decklink/Mac/include/
+!sdk/decklink/Mac/include/**
+!sdk/decklink/Win/
+!sdk/decklink/Win/include/
+!sdk/decklink/Win/include/**
+!sdk/decklink/Linux/
+!sdk/decklink/Linux/include/
+!sdk/decklink/Linux/include/**
 companion-module/node_modules/
 companion-module/pkg/
 *.tgz

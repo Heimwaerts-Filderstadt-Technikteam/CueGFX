@@ -3,7 +3,10 @@
 # Start:  Reiter "Actions" → "Build CueGFX" → "Run workflow"
 #         oder automatisch beim Push eines Tags wie v1.0.0 (dann mit GitHub-Release)
 #
-# DeckLink-SDK (darf NICHT öffentlich liegen!) – je Betriebssystem ein Secret
+# DeckLink-SDK (darf NICHT öffentlich liegen!)
+# Empfohlen: Header-Ordner ins private Repo legen:
+#   sdk/decklink/Mac/include, sdk/decklink/Win/include, sdk/decklink/Linux/include
+# Alternativ je Betriebssystem ein Secret
 # mit dem Direkt-Download-Link zum jeweiligen SDK-Paket (.zip, .tar.gz oder .dmg):
 #   DECKLINK_SDK_URL_MAC     – macOS-SDK
 #   DECKLINK_SDK_URL_WIN     – Windows-SDK
@@ -55,7 +58,14 @@ jobs:
           URL_ALL: ${{ secrets.DECKLINK_SDK_URL }}
         run: |
           SDK_URL="${URL_OS:-$URL_ALL}"
-          if [ -z "$SDK_URL" ]; then echo "::warning::Kein DeckLink-SDK-Secret für ${RUNNER_OS} – baue ohne DeckLink."; exit 0; fi
+          if [ -z "$SDK_URL" ]; then
+            if find sdk/decklink -name 'DeckLinkAPI.h' -o -name 'DeckLinkAPI.idl' 2>/dev/null | grep -q .; then
+              echo "DeckLink-SDK-Header liegen im Repo (sdk/decklink) – kein Download nötig."
+            else
+              echo "::warning::Kein DeckLink-SDK im Repo und kein Secret für ${RUNNER_OS} – baue ohne DeckLink."
+            fi
+            exit 0
+          fi
           # Freigabe-Links gängiger Cloud-Dienste in Direkt-Downloads umwandeln
           case "$SDK_URL" in
             *drive.google.com*)
