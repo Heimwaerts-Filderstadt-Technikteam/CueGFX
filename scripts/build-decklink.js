@@ -25,25 +25,39 @@ function fail(msg) {
   console.error('\n✖ ' + msg + '\n'); process.exit(1);
 }
 
-function findSdk() {
+const plat = process.platform === 'darwin' ? 'Mac' : process.platform === 'win32' ? 'Win' : 'Linux';
+const marker = process.platform === 'win32' ? 'DeckLinkAPI.idl' : 'DeckLinkAPI.h';
+
+/* Sucht den include-Ordner des SDK. Funktioniert mit dem Komplett-SDK (Mac/Win/Linux/include)
+   und mit den einzelnen OS-Downloads (z. B. "Blackmagic DeckLink SDK 14.x/include"). */
+function findInclude() {
   const candidates = [process.env.DECKLINK_SDK_DIR, path.join(root, 'sdk', 'decklink'), path.join(root, 'sdk')].filter(Boolean);
+  const walk = (dir, depth) => {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return []; }
+    const hits = entries.some((e) => e.isFile() && e.name === marker) ? [dir] : [];
+    if (depth > 0) for (const e of entries) if (e.isDirectory() && !e.name.startsWith('.') && e.name !== '__MACOSX') hits.push(...walk(path.join(dir, e.name), depth - 1));
+    return hits;
+  };
   for (const c of candidates) {
     if (!fs.existsSync(c)) continue;
-    if (['Mac', 'Win', 'Linux'].some((d) => fs.existsSync(path.join(c, d, 'include')))) return path.resolve(c);
-    // Häufig: SDK-ZIP enthält einen Unterordner "Blackmagic DeckLink SDK 14.x"
-    for (const sub of fs.readdirSync(c)) {
-      const p = path.join(c, sub);
-      if (fs.statSync(p).isDirectory() && ['Mac', 'Win', 'Linux'].some((d) => fs.existsSync(path.join(p, d, 'include')))) return path.resolve(p);
-    }
+    const hits = walk(path.resolve(c), 5);
+    if (!hits.length) continue;
+    // Bevorzugt <OS>/include, sonst irgendein include-Ordner (aber keinen anderer Plattformen)
+    const others = ['Mac', 'Win', 'Linux'].filter((p) => p !== plat);
+    const own = hits.find((h) => h.split(path.sep).includes(plat));
+    const neutral = hits.find((h) => !others.some((o) => h.split(path.sep).includes(o)));
+    const inc = own || neutral;
+    if (inc) return { sdk: path.resolve(c), inc };
   }
   return null;
 }
 
-const sdk = findSdk();
-if (!sdk) fail('DeckLink SDK nicht gefunden. Bitte das "Desktop Video SDK" von Blackmagic laden, entpacken und DECKLINK_SDK_DIR auf den Ordner setzen (oder nach ./sdk/decklink legen).');
-const plat = process.platform === 'darwin' ? 'Mac' : process.platform === 'win32' ? 'Win' : 'Linux';
-const inc = path.join(sdk, plat, 'include');
-if (!fs.existsSync(inc)) fail(`Im SDK fehlt der Ordner ${plat}/include`);
+const found = findInclude();
+if (!found) fail(`DeckLink SDK für ${plat} nicht gefunden (gesucht: ${marker}). Bitte das "Desktop Video SDK" von Blackmagic laden, entpacken und DECKLINK_SDK_DIR auf den Ordner setzen (oder nach ./sdk/decklink legen).`);
+const sdk = found.sdk;
+const inc = found.inc;
+console.log('• SDK-Header:', inc);
 console.log('• DeckLink SDK:', sdk);
 const ver = (() => { try { return (fs.readFileSync(path.join(inc, 'DeckLinkAPIVersion.h'), 'utf8').match(/VERSION_STRING\s+"([^"]+)"/) || [])[1]; } catch (_) { return null; } })();
 if (ver) console.log('• SDK-Version:', ver);

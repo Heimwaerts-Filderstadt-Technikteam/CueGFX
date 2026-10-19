@@ -3,9 +3,13 @@
 # Start:  Reiter "Actions" → "Build CueGFX" → "Run workflow"
 #         oder automatisch beim Push eines Tags wie v1.0.0 (dann mit GitHub-Release)
 #
-# DeckLink-SDK (darf NICHT öffentlich liegen!):
-#   Secret DECKLINK_SDK_URL = Direkt-Download-Link zu deinem SDK-ZIP
-#   (z. B. privater Cloud-Link). Ohne Secret wird ohne DeckLink gebaut.
+# DeckLink-SDK (darf NICHT öffentlich liegen!) – je Betriebssystem ein Secret
+# mit dem Direkt-Download-Link zum jeweiligen SDK-Paket (.zip, .tar.gz oder .dmg):
+#   DECKLINK_SDK_URL_MAC     – macOS-SDK
+#   DECKLINK_SDK_URL_WIN     – Windows-SDK
+#   DECKLINK_SDK_URL_LINUX   – Linux-SDK
+#   DECKLINK_SDK_URL         – optional: Komplett-SDK für alle, falls ein OS-Secret fehlt
+# Fehlt das Secret für ein OS, wird dieses OS ohne DeckLink gebaut (NDI bleibt).
 name: Build CueGFX
 
 on:
@@ -47,13 +51,26 @@ jobs:
       - name: DeckLink-SDK laden (optional)
         shell: bash
         env:
-          SDK_URL: ${{ secrets.DECKLINK_SDK_URL }}
+          URL_OS: ${{ runner.os == 'macOS' && secrets.DECKLINK_SDK_URL_MAC || runner.os == 'Windows' && secrets.DECKLINK_SDK_URL_WIN || secrets.DECKLINK_SDK_URL_LINUX }}
+          URL_ALL: ${{ secrets.DECKLINK_SDK_URL }}
         run: |
-          if [ -z "$SDK_URL" ]; then echo "Kein DECKLINK_SDK_URL-Secret – baue ohne DeckLink."; exit 0; fi
+          SDK_URL="${URL_OS:-$URL_ALL}"
+          if [ -z "$SDK_URL" ]; then echo "::warning::Kein DeckLink-SDK-Secret für ${RUNNER_OS} – baue ohne DeckLink."; exit 0; fi
           mkdir -p sdk/decklink
-          curl -fsSL "$SDK_URL" -o sdk/decklink.zip
-          unzip -q sdk/decklink.zip -d sdk/decklink
-          rm sdk/decklink.zip
+          curl -fsSL "$SDK_URL" -o sdk/pkg
+          MAGIC=$(head -c 2 sdk/pkg | od -An -tx1 | tr -d ' \n')
+          if [ "$MAGIC" = "504b" ]; then
+            if [ "$RUNNER_OS" = "Windows" ]; then 7z x -y -bd -osdk/decklink sdk/pkg > /dev/null; else unzip -q sdk/pkg -d sdk/decklink; fi
+          elif [ "$MAGIC" = "1f8b" ]; then
+            tar -xzf sdk/pkg -C sdk/decklink
+          elif [ "$RUNNER_OS" = "macOS" ]; then
+            MNT=$(hdiutil attach -nobrowse -readonly sdk/pkg | grep -o '/Volumes/.*' | tail -1)
+            cp -R "$MNT"/. sdk/decklink/ && hdiutil detach "$MNT" -quiet
+          else
+            echo "::error::Unbekanntes SDK-Format (kein ZIP/tar.gz). Ist der Link ein Direkt-Download?"; exit 1
+          fi
+          rm -f sdk/pkg
+          echo "SDK entpackt:"; find sdk/decklink -name 'DeckLinkAPI.h' -o -name 'DeckLinkAPI.idl' | head
 
       - name: Abhängigkeiten
         run: npm install --no-audit --no-fund
