@@ -117,6 +117,14 @@
   const heart = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 21h3V9H2v12zm20-11c0-1.1-.9-2-2-2h-6.3l1-4.6v-.3c0-.4-.2-.8-.4-1.1L13.2 1 6.6 7.6C6.2 7.9 6 8.4 6 9v10c0 1.1.9 2 2 2h9c.8 0 1.5-.5 1.8-1.2l3-7.1c.1-.2.2-.5.2-.7v-2z"/></svg>';
   const ago = (ts) => { const s = Math.max(0, (client.now() - ts) / 1000); if (s < 60) return 'gerade eben'; if (s < 3600) return `vor ${Math.floor(s / 60)} Min.`; return `vor ${Math.floor(s / 3600)} Std.`; };
 
+  /* Nicht neu zeichnen, während ein Finger/die Maus gedrückt ist – sonst verschwindet der Button unter dem Tipp */
+  let pressed = false, pendingQA = false, pendingPolls = false;
+  document.addEventListener('pointerdown', () => { pressed = true; }, true);
+  const release = () => { if (!pressed) return; setTimeout(() => { pressed = false; if (pendingQA) { pendingQA = false; renderQA(); } if (pendingPolls) { pendingPolls = false; renderPolls(); } }, 0); };
+  document.addEventListener('pointerup', release, true);
+  document.addEventListener('pointercancel', release, true);
+  window.addEventListener('blur', release);
+
   function setTab(t) {
     tab = t;
     document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
@@ -154,6 +162,7 @@
     </div>`;
   }
   function renderQA() {
+    if (pressed) { pendingQA = true; return; }
     if (!pub) return;
     const live = pub.questions.filter((q) => !q.resolved);
     const done = pub.questions.filter((q) => q.resolved);
@@ -209,6 +218,7 @@
     return '';
   }
   function renderPolls() {
+    if (pressed) { pendingPolls = true; return; }
     if (!pub) return;
     const box = $('polls');
     if (!pub.polls.length) { box.innerHTML = '<div class="empty card">Gerade läuft keine Umfrage.</div>'; return; }

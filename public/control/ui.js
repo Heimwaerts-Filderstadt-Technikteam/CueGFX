@@ -115,6 +115,27 @@
 
   /* ---------- Schemabasierte Felder ---------- */
   const isFocused = (el) => el && (el === document.activeElement || el.contains(document.activeElement));
+  /* true nur, wenn gerade in einem Eingabefeld getippt/ausgewählt wird – Buttons & Checkboxen zählen nicht */
+  const NON_TEXT = /^(button|submit|reset|checkbox|radio|file|image|color)$/i;
+  const isEditing = (el) => {
+    const a = document.activeElement;
+    if (!el || !a || !(a === el || el.contains(a))) return false;
+    if (a.isContentEditable || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT') return true;
+    return a.tagName === 'INPUT' && !NON_TEXT.test(a.type || 'text');
+  };
+  /* Auswahlfelder & Checkboxen nach der Änderung freigeben, damit die Ansicht sofort aktualisiert */
+  document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t && (t.tagName === 'SELECT' || (t.tagName === 'INPUT' && /^(checkbox|radio|color|range|file)$/i.test(t.type)))) setTimeout(() => { if (document.activeElement === t) t.blur(); }, 0);
+  }, true);
+  /* Während eine Maustaste/ein Finger gedrückt ist, nicht neu zeichnen – sonst verschwindet der Button unter dem Klick */
+  let pressed = false; const afterPress = [];
+  document.addEventListener('pointerdown', () => { pressed = true; }, true);
+  const release = () => { if (!pressed) return; setTimeout(() => { pressed = false; const fns = afterPress.splice(0); for (const fn of new Set(fns)) { try { fn(); } catch (err) { console.error(err); } } }, 0); };
+  document.addEventListener('pointerup', release, true);
+  document.addEventListener('pointercancel', release, true);
+  window.addEventListener('blur', release);
+  const whenReleased = (fn) => { if (!pressed) return true; if (!afterPress.includes(fn)) afterPress.push(fn); return false; };
   const mediaUrl = (v) => !v ? '' : /^(https?:|data:|\/)/.test(v) ? v : '/media/' + encodeURIComponent(v);
 
   function field(def, value, onChange, env) {
@@ -253,5 +274,5 @@
     return wrap;
   }
 
-  window.UI = { h, debounce, toast, modal, prompt, confirm: confirmBox, menu, api, uploadFile, copyText, field, isFocused, mediaUrl };
+  window.UI = { h, debounce, toast, modal, prompt, confirm: confirmBox, menu, api, uploadFile, copyText, field, isFocused, isEditing, whenReleased, mediaUrl };
 })();

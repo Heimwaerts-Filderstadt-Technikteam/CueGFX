@@ -175,7 +175,7 @@
 
     render();
     root.setValue = (v) => {
-      if (dragging || UI.isFocused(props)) return;
+      if (dragging || UI.isEditing(props)) return;
       if (JSON.stringify(v || []) === JSON.stringify(layers)) return;
       layers = JSON.parse(JSON.stringify(v || []));
       if (sel && !cur()) sel = null;

@@ -79,6 +79,7 @@
 
   /* ---------- Gesamt-Rendering ---------- */
   function renderAll() {
+    if (!UI.whenReleased(renderAll)) return;
     renderHeader();
     renderList();
     if (S.tab === 'graphics') renderEditor(); else renderTab();
@@ -469,10 +470,12 @@
   $('tabs').addEventListener('click', (e) => { const b = e.target.closest('button[data-tab]'); if (b) setTab(b.dataset.tab); });
 
   let tabDirty = false;
+  const renderTabLater = () => renderTab();
   function renderTab(force) {
     const ed = $('editor');
-    if (!force && UI.isFocused(ed)) {
-      if (!tabDirty) { tabDirty = true; ed.addEventListener('focusout', function f() { setTimeout(() => { if (!UI.isFocused(ed)) { ed.removeEventListener('focusout', f); tabDirty = false; renderTab(true); } }, 50); }); }
+    if (!force && !UI.whenReleased(renderTabLater)) return;
+    if (!force && UI.isEditing(ed)) {
+      if (!tabDirty) { tabDirty = true; ed.addEventListener('focusout', function f() { setTimeout(() => { if (!UI.isEditing(ed)) { ed.removeEventListener('focusout', f); tabDirty = false; renderTab(true); } }, 50); }); }
       return;
     }
     const scroll = $('editor-pane').scrollTop;
