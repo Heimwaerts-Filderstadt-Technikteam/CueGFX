@@ -201,3 +201,17 @@ Daten (Projekte, Medien, Einstellungen) liegen im Benutzerordner der App, erreic
 ---
 
 Eigenständige Software. Nicht mit H2R Graphics, Here to Record, Slido, Vizrt/NDI oder Blackmagic Design verbunden. „DeckLink“, „UltraStudio“ und „ATEM“ sind Marken von Blackmagic Design.
+
+## Versionierung
+
+Jeder Build auf GitHub bekommt automatisch eine eigene Versionsnummer (`scripts/set-version.js`):
+
+| Start | Version |
+|---|---|
+| „Run workflow“ ohne Eingabe | Haupt- und Nebenversion aus `package.json` + Build-Nummer, z. B. **1.1.27** |
+| „Run workflow“ mit Eingabe | genau die eingegebene Version, z. B. `1.2.0` oder `1.3.0-beta.1` |
+| Tag `v1.2.0` pushen | **1.2.0** und zusätzlich ein Release-Entwurf |
+
+Für einen neuen Versionssprung (z. B. auf 1.2) einfach `"version"` in `package.json` auf `1.2.0` setzen.
+Die Version samt Build-Nummer und Commit steht in der App unter *Einstellungen → Über*, im Fenstertitel und im Menü *Hilfe → Über CueGFX*.
+Lokal gebaute Apps zeigen „lokal gebaut“.

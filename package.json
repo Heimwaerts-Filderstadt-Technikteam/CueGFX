@@ -1,7 +1,7 @@
 {
   "name": "cuegfx",
   "productName": "CueGFX",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Live-Grafik-App für Streams und Broadcast mit Blackmagic DeckLink / UltraStudio Ausgabe (Fill+Key, interner Keyer, Live-Eingang)",
   "main": "src/main/main.js",
   "license": "UNLICENSED",
@@ -17,7 +17,8 @@
     "dist:mac:unsigned": "node scripts/build-native.js --optional && electron-builder --mac -c.mac.identity=null",
     "dist:win": "node scripts/build-native.js --optional && electron-builder --win",
     "dist:linux": "node scripts/build-native.js --optional && electron-builder --linux",
-    "start:server": "node src/server/standalone.js"
+    "start:server": "node src/server/standalone.js",
+    "version:ci": "node scripts/set-version.js"
   },
   "devDependencies": {
     "electron": "^44.7.0",

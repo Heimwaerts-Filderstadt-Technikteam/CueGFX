@@ -18,6 +18,7 @@ if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 let server = null, controlWin = null, decklink = null, displays = null, ndi = null;
 const extraWindows = new Set();
 const log = (...a) => console.log('[CueGFX]', ...a);
+const buildLabel = () => { const b = require('../../package.json').buildInfo; return b ? `Build #${b.build} · ${b.commit} · ${b.date}\n\n` : 'Entwicklungsversion (lokal gebaut)\n\n'; };
 const port = () => (server ? server.port : 4001);
 const baseUrl = () => `http://127.0.0.1:${port()}`;
 
@@ -112,7 +113,7 @@ function buildMenu() {
       submenu: [
         { label: `Server: ${baseUrl()}`, enabled: false },
         { label: 'API-Infos', click: () => shell.openExternal(`${baseUrl()}/api/info`) },
-        { label: 'Über CueGFX', click: () => dialog.showMessageBox({ type: 'info', title: 'CueGFX', message: `CueGFX ${app.getVersion()}`, detail: `Live-Grafiken mit DeckLink-/UltraStudio-Ausgabe.\nServer: ${baseUrl()}\nNetzwerk: ${server ? server.lanUrls().join(', ') : ''}` }) }
+        { label: 'Über CueGFX', click: () => dialog.showMessageBox({ type: 'info', title: 'CueGFX', message: `CueGFX ${app.getVersion()}`, detail: `${buildLabel()}Live-Grafiken mit DeckLink-/UltraStudio-Ausgabe.\nServer: ${baseUrl()}\nNetzwerk: ${server ? server.lanUrls().join(', ') : ''}` }) }
       ]
     }
   ];

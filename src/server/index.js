@@ -15,7 +15,9 @@ const { createAudience } = require('./audience');
 const Types = require('../../public/shared/graphic-types.js');
 
 const PUBLIC = path.join(__dirname, '..', '..', 'public');
-const VERSION = require('../../package.json').version;
+const PKG = require('../../package.json');
+const VERSION = PKG.version;
+const BUILD = PKG.buildInfo || null; // nur in CI-Builds gesetzt (scripts/set-version.js)
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -153,7 +155,7 @@ class CueServer extends EventEmitter {
 
   _statePayload() {
     if (!this._lanCache || Date.now() - this._lanCache.t > 10000) this._lanCache = { t: Date.now(), urls: this.lanUrls() };
-    return { t: 'state', serverTime: Date.now(), project: this.project, vars: this.variables(), info: { version: VERSION, port: this.port, lan: this._lanCache.urls } };
+    return { t: 'state', serverTime: Date.now(), project: this.project, vars: this.variables(), info: { version: VERSION, build: BUILD, port: this.port, lan: this._lanCache.urls } };
   }
 
   _sendAudience(c, publicJson) {
@@ -662,7 +664,7 @@ class CueServer extends EventEmitter {
       res.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'no-cache' });
       res.end(css); return;
     }
-    if (route === 'info') return this._json(res, { app: 'CueGFX', version: VERSION, port: this.port, lan: this.lanUrls(), pin: !!this.store.config.accessPin, desktop: !!this.hooks.desktop });
+    if (route === 'info') return this._json(res, { app: 'CueGFX', version: VERSION, build: BUILD, port: this.port, lan: this.lanUrls(), pin: !!this.store.config.accessPin, desktop: !!this.hooks.desktop });
 
     if (route === 'state') return this._json(res, { project: this.project, vars: this.variables(), serverTime: Date.now() });
     if (route === 'cmd' && m === 'POST') {

@@ -1,5 +1,10 @@
 # CueGFX – baut macOS (arm64 + x64), Windows und Linux auf GitHub-Runnern.
 #
+# Versionierung (scripts/set-version.js):
+#   - normaler Lauf:  <Haupt>.<Neben> aus package.json + Build-Nummer  → z. B. 1.1.27
+#   - Tag v1.2.0:      genau 1.2.0 (+ Release-Entwurf)
+#   - Eingabe beim manuellen Start: genau diese Version
+#
 # Start:  Reiter "Actions" → "Build CueGFX" → "Run workflow"
 #         oder automatisch beim Push eines Tags wie v1.0.0 (dann mit GitHub-Release)
 #
@@ -14,9 +19,15 @@
 #   DECKLINK_SDK_URL         – optional: Komplett-SDK für alle, falls ein OS-Secret fehlt
 # Fehlt das Secret für ein OS, wird dieses OS ohne DeckLink gebaut (NDI bleibt).
 name: Build CueGFX
+run-name: "Build CueGFX ${{ github.event.inputs.version || github.ref_name }} #${{ github.run_number }}"
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (leer = automatisch, z. B. 1.1.27)'
+        required: false
+        default: ''
   push:
     tags: ['v*']
 
@@ -106,6 +117,13 @@ jobs:
           rm -f sdk/pkg
           echo "SDK entpackt:"; find sdk/decklink -name 'DeckLinkAPI.h' -o -name 'DeckLinkAPI.idl' | head
 
+      - name: Version setzen
+        id: ver
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: node scripts/set-version.js
+
       - name: Abhängigkeiten
         run: npm install --no-audit --no-fund
 
@@ -131,7 +149,7 @@ jobs:
       - name: Artefakte hochladen
         uses: actions/upload-artifact@v7
         with:
-          name: CueGFX-${{ matrix.name }}
+          name: CueGFX-${{ steps.ver.outputs.version }}-${{ matrix.name }}
           retention-days: 14
           path: |
             dist/*.dmg
@@ -153,4 +171,6 @@ jobs:
       - uses: softprops/action-gh-release@v3
         with:
           draft: true
+          name: CueGFX ${{ github.ref_name }}
+          generate_release_notes: true
           files: out/*

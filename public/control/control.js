@@ -89,7 +89,7 @@
 
   function renderHeader() {
     $('proj-name').textContent = S.project.name;
-    document.title = `CueGFX – ${S.project.name}`;
+    document.title = `CueGFX ${(S.info && S.info.version) || ''} – ${S.project.name}`;
     const pv = S.project.graphics.filter((g) => g.preview).length;
     $('btn-take').disabled = pv === 0;
     $('btn-take').textContent = pv ? `TAKE (${pv})` : 'TAKE';
@@ -1025,7 +1025,7 @@
         ex('/api/take · /api/hide-all · /api/clear-preview', 'Globale Aktionen'), ex('/api/variables/:name?value=…', 'Variable setzen'),
         ex('/api/lists/:name/next | prev | select?index=…', 'Liste durchschalten'), ex('/api/projects · /api/projects/:id/switch', 'Projekte'),
         ex('POST /api/cmd {"cmd":"…","args":{…}}', 'Jeder interne Befehl'), ex('ws://…/ws?role=control', 'Live-Status per WebSocket'))));
-    ed.appendChild(h('div', { class: 'card' }, h('h3', null, 'Über'), h('p', { class: 'hint', style: { margin: 0 } }, `CueGFX ${(S.info && S.info.version) || ''} · Port ${(S.info && S.info.port) || ''}`)));
+    ed.appendChild(h('div', { class: 'card' }, h('h3', null, 'Über'), h('p', { class: 'hint', style: { margin: 0 } }, `CueGFX ${(S.info && S.info.version) || ''}${S.info && S.info.build ? ` · Build #${S.info.build.build} (${S.info.build.commit}, ${S.info.build.date})` : ' · lokal gebaut'} · Port ${(S.info && S.info.port) || ''}`)));
   }
 
   /* ---------- Projekte ---------- */
