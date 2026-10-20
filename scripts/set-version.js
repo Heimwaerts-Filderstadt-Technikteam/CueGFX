@@ -8,20 +8,25 @@
  *   sonst               → Haupt- und Nebenversion aus package.json + fortlaufende Build-Nummer
  *                          (package.json 1.1.0, Build #27 → 1.1.27)
  *
+ * Aufruf: node scripts/set-version.js [Unterordner]   (z. B. companion-module)
+ *
  * Schreibt version + buildInfo (Commit, Datum, Build-Nr.) in package.json.
  * Die Änderung wird nicht committet – package.json im Repo bleibt die Basis.
  */
 const fs = require('fs');
 const path = require('path');
 
-const file = path.join(__dirname, '..', 'package.json');
+// Optional: Unterordner (z. B. "companion-module") – dann wird auch companion/manifest.json mitgezogen
+const dir = path.resolve(__dirname, '..', process.argv[2] || '.');
+const file = path.join(dir, 'package.json');
+const manifestFile = path.join(dir, 'companion', 'manifest.json');
 const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
 const env = process.env;
 const SEMVER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 
 const run = env.GITHUB_RUN_NUMBER || '0';
 const manual = String(env.INPUT_VERSION || '').trim().replace(/^v/, '');
-const tag = env.GITHUB_REF_TYPE === 'tag' ? String(env.GITHUB_REF_NAME || '').replace(/^v/, '') : '';
+const tag = env.GITHUB_REF_TYPE === 'tag' ? String(env.GITHUB_REF_NAME || '').replace(/^(companion-)?v/, '') : '';
 
 let version, source;
 if (manual) { version = manual; source = 'Eingabe'; }
@@ -39,5 +44,11 @@ pkg.buildInfo = {
   date: new Date().toISOString().slice(0, 10)
 };
 fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + '\n');
+if (fs.existsSync(manifestFile)) {
+  const man = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+  man.version = version;
+  fs.writeFileSync(manifestFile, JSON.stringify(man, null, 2) + '\n');
+  console.log('• manifest.json auf ' + version + ' gesetzt');
+}
 console.log(`• Version ${version} (${source}), Build #${run}, Commit ${pkg.buildInfo.commit || '-'}`);
 if (env.GITHUB_OUTPUT) fs.appendFileSync(env.GITHUB_OUTPUT, `version=${version}\n`);

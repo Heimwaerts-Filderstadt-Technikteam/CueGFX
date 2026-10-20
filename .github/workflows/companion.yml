@@ -1,0 +1,90 @@
+# CueGFX – Bitfocus-Companion-Modul bauen und als Release veröffentlichen.
+#
+# Läuft automatisch, sobald sich etwas in companion-module/ ändert,
+# manuell über "Actions → Companion-Modul → Run workflow"
+# oder per Tag companion-v1.2.0.
+#
+# Versionierung (scripts/set-version.js companion-module):
+#   - automatisch:  <Haupt>.<Neben> aus companion-module/package.json + Build-Nummer → z. B. 1.1.4
+#   - Eingabe beim manuellen Start oder Tag companion-v1.2.0: genau diese Version
+#
+# Ergebnis: Release "Companion-Modul <Version>" mit cuegfx-<Version>.tgz.
+# In Companion (ab 4.0) importieren: Modules → "Import module package" → .tgz auswählen.
+name: Companion-Modul
+run-name: "Companion-Modul ${{ github.event.inputs.version || github.ref_name }} #${{ github.run_number }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (leer = automatisch, z. B. 1.2.0)'
+        required: false
+        default: ''
+  push:
+    branches: [main]
+    paths: ['companion-module/**', '.github/workflows/companion.yml']
+    tags: ['companion-v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: companion-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: companion-module
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Version setzen
+        id: ver
+        working-directory: .
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: node scripts/set-version.js companion-module
+
+      - name: Abhängigkeiten
+        run: npm install --no-audit --no-fund
+
+      - name: Syntax prüfen
+        run: for f in src/*.js; do node --check "$f"; done
+
+      - name: Modul-Paket bauen
+        run: npx companion-module-build
+
+      - name: Paket benennen
+        id: pkg
+        run: |
+          F=$(ls -1 *.tgz | head -1)
+          [ -n "$F" ] || { echo "::error::Kein .tgz erzeugt"; exit 1; }
+          OUT="cuegfx-companion-${{ steps.ver.outputs.version }}.tgz"
+          [ "$F" = "$OUT" ] || mv "$F" "$OUT"
+          echo "file=companion-module/$OUT" >> "$GITHUB_OUTPUT"
+          tar -tzf "$OUT" | head -20
+          ls -la "$OUT"
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: companion-v${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Companion-Modul ${{ steps.ver.outputs.version }}
+          prerelease: ${{ github.ref_type != 'tag' && github.event.inputs.version == '' }}
+          make_latest: false   # "Latest" bleibt der CueGFX-App vorbehalten
+          fail_on_unmatched_files: true
+          files: ${{ steps.pkg.outputs.file }}
+          body: |
+            Bitfocus-Companion-Modul für CueGFX, Version ${{ steps.ver.outputs.version }}.
+
+            **Installation:** In Companion unter *Modules* → *Import module package* die Datei `cuegfx-companion-${{ steps.ver.outputs.version }}.tgz` auswählen. Danach unter *Connections* „CueGFX“ hinzufügen und IP/Port des CueGFX-Rechners eintragen (Standard-Port 4001).
+
+            Der Paket-Import gibt es ab Companion 4.0. Bei Companion 3.x das Paket entpacken und den Ordner als Entwickler-Modul einbinden (*Settings → Developer modules path*).

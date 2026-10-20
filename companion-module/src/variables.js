@@ -1,4 +1,5 @@
 'use strict';
+const oldestPending = (p) => (p && p.questions ? p.questions : []).filter((q) => q.status === 'pending').sort((a, b) => a.ts - b.ts)[0] || null;
 /* Variablen: Projektstatus, je Grafik (Live, Vorschau, Timer, Spielstand, Folie) und alle CueGFX-Variablen */
 
 function slug(s) {
@@ -63,6 +64,11 @@ function buildVariables(self) {
     { variableId: 'qa_active_text', name: 'Q&A: Text der aktiven Frage' },
     { variableId: 'qa_active_author', name: 'Q&A: Name bei der aktiven Frage' },
     { variableId: 'qa_active_likes', name: 'Q&A: Likes der aktiven Frage' },
+    { variableId: 'qa_pending_text', name: 'Q&A: älteste wartende Frage (zur Moderation)' },
+    { variableId: 'qa_pending_author', name: 'Q&A: Name bei der ältesten wartenden Frage' },
+    { variableId: 'qa_pending_flagged', name: 'Q&A: älteste wartende Frage hat Sperrwort (true/false)' },
+    { variableId: 'polls_open', name: 'Umfragen: Anzahl geöffnet' },
+    { variableId: 'app_version', name: 'CueGFX-Version' },
     { variableId: 'time', name: 'Uhrzeit des CueGFX-Rechners' }
   ];
   const p = self.project;
@@ -116,6 +122,12 @@ function computeVariables(self) {
   v.qa_active_text = act ? act.text.replace(/\n/g, ' ') : '';
   v.qa_active_author = act ? act.author : '';
   v.qa_active_likes = act ? String(act.likes || 0) : '';
+  const nextPending = oldestPending(p);
+  v.qa_pending_text = nextPending ? nextPending.text.replace(/\n/g, ' ') : '';
+  v.qa_pending_author = nextPending ? nextPending.author : '';
+  v.qa_pending_flagged = nextPending && (nextPending.flagged || []).length ? 'true' : 'false';
+  v.polls_open = String((p.polls || []).filter((x) => x.open).length);
+  v.app_version = (self.info && self.info.version) || '';
   const keys = graphicKeys(p.graphics);
   for (const g of p.graphics) {
     const k = keys.get(g.id);
@@ -146,4 +158,4 @@ function computeVariables(self) {
   return v;
 }
 
-module.exports = { buildVariables, computeVariables, graphicKeys, slug, timerMs, TIMER_TYPES };
+module.exports = { oldestPending, buildVariables, computeVariables, graphicKeys, slug, timerMs, TIMER_TYPES };

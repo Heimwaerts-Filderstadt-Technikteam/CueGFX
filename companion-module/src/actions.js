@@ -1,6 +1,6 @@
 'use strict';
 /* Aktionen */
-const { TIMER_TYPES } = require('./variables');
+const { TIMER_TYPES, oldestPending } = require('./variables');
 
 function choices(self) {
   const g = self.graphics().map((x) => ({ id: x.id, label: `${x.name} (${x.type})` }));
@@ -175,6 +175,26 @@ function buildActions(self) {
     },
     qa_resolve_active: { name: 'Q&A: Aktive Frage gelöst', options: [], callback: () => self.run('qa.resolveActive') },
     qa_approve_all: { name: 'Q&A: Alle wartenden Fragen freigeben', description: 'Fragen mit Sperrwort-Treffer bleiben stehen', options: [], callback: () => self.run('qa.approveAll') },
+    qa_moderate_next: {
+      name: 'Q&A: Älteste wartende Frage freigeben/ablehnen',
+      description: 'Moderation per Taste – der Text steht in $(cuegfx:qa_pending_text)',
+      options: [{ type: 'dropdown', id: 'mode', label: 'Aktion', default: 'approve', choices: [{ id: 'approve', label: 'Freigeben' }, { id: 'reject', label: 'Ablehnen' }] }],
+      callback: async (ev) => {
+        const q = oldestPending(self.project);
+        if (!q) { self.log('info', 'Keine Frage wartet auf Prüfung'); return; }
+        await self.run(ev.options.mode === 'reject' ? 'qa.reject' : 'qa.approve', { id: q.id });
+      }
+    },
+    qa_show_active: {
+      name: 'Q&A: Aktive Frage einblenden',
+      description: 'Zeigt die hervorgehobene Frage in der Grafik „Publikumsfrage“',
+      options: [{ type: 'checkbox', id: 'preview', label: 'Nur in Vorschau', default: false }],
+      callback: async (ev) => {
+        const q = self.project && self.project.questions.find((x) => x.active);
+        if (!q) { self.log('info', 'Keine aktive Frage'); return; }
+        await self.run('qa.show', { id: q.id, live: !ev.options.preview });
+      }
+    },
     qa_settings: {
       name: 'Q&A: Einstellung umschalten',
       options: [{ type: 'dropdown', id: 'key', label: 'Einstellung', default: 'open', choices: [{ id: 'open', label: 'Fragen erlaubt' }, { id: 'moderation', label: 'Fragen vor Freigabe prüfen' }, { id: 'allowLikes', label: 'Likes erlaubt' }, { id: 'showQuestions', label: 'Publikum sieht Fragenliste' }] },
@@ -217,6 +237,12 @@ function buildActions(self) {
     },
 
     /* Sonstiges */
+    theme_preset: {
+      name: 'Design-Vorlage anwenden',
+      options: [{ type: 'dropdown', id: 'preset', label: 'Vorlage', default: 'studio', allowCustom: true,
+        choices: [['studio', 'Studio'], ['neon', 'Neon'], ['clean', 'Clean Weiß'], ['sport', 'Sport'], ['worship', 'Gottesdienst'], ['corporate', 'Corporate']].map(([id, label]) => ({ id, label })) }],
+      callback: (ev) => self.run('theme.preset', { preset: ev.options.preset })
+    },
     project_switch: {
       name: 'Projekt wechseln',
       options: [{ type: 'textinput', id: 'project', label: 'Projekt-ID oder -Name', default: '', useVariables: true }],

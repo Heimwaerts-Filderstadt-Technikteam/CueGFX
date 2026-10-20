@@ -27,6 +27,10 @@ function buildPresets(self) {
   P.qa_active_next = btn('Q&A', 'Nächste Frage aktiv', `NÄCHSTE\\nFRAGE\\n${v('questions_live')} offen`, [['qa_active_next', { sort: 'likes', resolve: true }]], [['qa_has_active', {}, { bgcolor: DARK_GREEN, color: WHITE }]], { style: { size: 14 } });
   P.qa_resolve = btn('Q&A', 'Aktive Frage gelöst', '✓ GELÖST', [['qa_resolve_active']], [['qa_has_active', {}, { bgcolor: AMBER, color: BLACK }]]);
   P.qa_pending = btn('Q&A', 'Wartende Fragen freigeben', `PRÜFEN\\n${v('questions_new')}`, [['qa_approve_all']], [['has_new_questions', {}, { bgcolor: AMBER, color: BLACK }]], { style: { size: 14 } });
+  P.qa_mod_text = btn('Q&A', 'Wartende Frage (Text)', `${v('qa_pending_text')}`, [], [['qa_pending_flagged', {}, { bgcolor: RED, color: WHITE }]], { style: { size: 7 } });
+  P.qa_mod_ok = btn('Q&A', 'Wartende Frage freigeben', `✓ FREI\\n${v('questions_new')} wartend`, [['qa_moderate_next', { mode: 'approve' }]], [['has_new_questions', {}, { bgcolor: GREEN, color: WHITE }]], { style: { size: 14 } });
+  P.qa_mod_no = btn('Q&A', 'Wartende Frage ablehnen', '✕ ABLEHNEN', [['qa_moderate_next', { mode: 'reject' }]], [['qa_pending_flagged', {}, { bgcolor: RED, color: WHITE }]], { style: { size: 14, bgcolor: DARK_RED } });
+  P.qa_show_active = btn('Q&A', 'Aktive Frage einblenden', 'FRAGE\\nZEIGEN', [['qa_show_active', { preview: false }]], [['qa_has_active', {}, { bgcolor: DARK_GREEN, color: WHITE }]]);
   P.qa_open = btn('Q&A', 'Fragen erlauben an/aus', 'FRAGEN\\nOFFEN', [['qa_settings', { key: 'open', mode: 'toggle' }]], [['qa_setting', { key: 'open' }, { bgcolor: GREEN, color: WHITE }]]);
   P.qa_active_text = btn('Q&A', 'Aktive Frage (Anzeige)', `${v('qa_active_text')}`, [], [['qa_has_active', {}, { bgcolor: AMBER, color: BLACK }]], { style: { size: 7 } });
 

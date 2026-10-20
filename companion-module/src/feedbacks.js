@@ -67,6 +67,11 @@ function buildFeedbacks(self) {
       type: 'boolean', name: 'Q&A: Fragen warten auf Freigabe', defaultStyle: { bgcolor: AMBER, color: BLACK },
       options: [], callback: () => !!(self.project && self.project.questions.some((q) => q.status === 'pending'))
     },
+    qa_pending_flagged: {
+      type: 'boolean', name: 'Q&A: Wartende Frage enthält Sperrwort',
+      defaultStyle: { bgcolor: RED, color: WHITE },
+      options: [], callback: () => { const q = require('./variables').oldestPending(self.project); return !!(q && (q.flagged || []).length); }
+    },
     qa_has_active: {
       type: 'boolean', name: 'Q&A: Eine Frage ist aktiv', defaultStyle: { bgcolor: AMBER, color: BLACK },
       options: [], callback: () => !!(self.project && self.project.questions.some((q) => q.active))

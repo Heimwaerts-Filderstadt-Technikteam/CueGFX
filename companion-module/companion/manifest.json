@@ -4,11 +4,15 @@
   "name": "CueGFX",
   "shortname": "cuegfx",
   "description": "Steuert CueGFX Live-Grafiken: Ein-/Ausblenden, Vorschau/Take, Timer, Spielstände, Songtexte, Variablen, Listen und Umfragen – mit Live-Feedback.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "license": "MIT",
-  "repository": "git+https://github.com/cuegfx/companion-module-cuegfx.git",
-  "bugs": "https://github.com/cuegfx/companion-module-cuegfx/issues",
-  "maintainers": [{ "name": "CueGFX" }],
+  "repository": "git+https://github.com/Heimwaerts-Filderstadt-Technikteam/CueGFX.git",
+  "bugs": "https://github.com/Heimwaerts-Filderstadt-Technikteam/CueGFX/issues",
+  "maintainers": [
+    {
+      "name": "CueGFX"
+    }
+  ],
   "legacyIds": [],
   "runtime": {
     "type": "node22",
@@ -17,6 +21,17 @@
     "entrypoint": "../src/main.js"
   },
   "manufacturer": "CueGFX",
-  "products": ["CueGFX"],
-  "keywords": ["graphics", "lower third", "overlay", "cg", "character generator", "decklink", "timer", "scoreboard"]
+  "products": [
+    "CueGFX"
+  ],
+  "keywords": [
+    "graphics",
+    "lower third",
+    "overlay",
+    "cg",
+    "character generator",
+    "decklink",
+    "timer",
+    "scoreboard"
+  ]
 }

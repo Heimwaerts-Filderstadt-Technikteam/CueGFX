@@ -1,6 +1,6 @@
 {
   "name": "cuegfx",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Bitfocus Companion Modul für CueGFX Live-Grafiken",
   "main": "src/main.js",
   "type": "commonjs",
@@ -16,5 +16,9 @@
   },
   "devDependencies": {
     "@companion-module/tools": "^2.8.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Heimwaerts-Filderstadt-Technikteam/CueGFX.git"
   }
 }

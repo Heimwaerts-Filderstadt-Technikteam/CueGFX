@@ -15,18 +15,20 @@ Für jede Grafik des aktiven Projekts entstehen automatisch fertige Tasten:
 - **Spielstand** – Punkte für Team A/B mit Live-Anzeige
 - **Songtexte & Programm** – Weiter/Zurück mit Vorschau auf die nächste Folie
 - **Listen** und **Umfragen**
+- **Q&A** – Nächste Frage aktiv, Aktive Frage gelöst/einblenden, Moderation per Taste (Text der wartenden Frage, Freigeben, Ablehnen – rot bei Sperrwort)
 
 Wird in CueGFX eine Grafik angelegt, umbenannt oder das Projekt gewechselt, aktualisieren sich Auswahllisten, Variablen und Presets automatisch.
 
 ## Aktionen
-Grafik ein/aus/umschalten · Vorschau · Nur diese Grafik in Vorschau · TAKE · Alles ausblenden (optional pro Ausgang) · Vorschau leeren · Grafik-Feld ändern · Timer steuern/setzen/±Zeit/Modus · Spielstand Punkte/setzen/0/tauschen · Songtext/Programm weiter/zurück/Position · Variable setzen · Liste weiter/zurück/Position · Nächste Publikumsfrage · Umfrage öffnen/schließen/zurücksetzen · Projekt wechseln · Experte: beliebiger Befehl.
+Grafik ein/aus/umschalten · Vorschau · Nur diese Grafik in Vorschau · TAKE · Alles ausblenden (optional pro Ausgang) · Vorschau leeren · Grafik-Feld ändern · Timer steuern/setzen/±Zeit/Modus · Spielstand Punkte/setzen/0/tauschen · Songtext/Programm weiter/zurück/Position · Variable setzen · Liste weiter/zurück/Position · Q&A: Nächste Frage aktiv, Aktive Frage gelöst, Aktive Frage einblenden, Älteste wartende Frage freigeben/ablehnen, Alle freigeben, Einstellungen umschalten, Nächste Frage einzeln einblenden · Umfrage öffnen/schließen/zurücksetzen · Design-Vorlage anwenden · Projekt wechseln · Experte: beliebiger Befehl.
 
 Grafiken können im Auswahlfeld gewählt oder per **eigenem Wert** (Grafik-ID oder exakter Name, auch mit Companion-Variablen) angesprochen werden.
 
 ## Variablen (Auszug)
-- `$(cuegfx:live_names)`, `$(cuegfx:live_count)`, `$(cuegfx:preview_count)`, `$(cuegfx:project)`, `$(cuegfx:questions_new)`
+- `$(cuegfx:live_names)`, `$(cuegfx:live_count)`, `$(cuegfx:preview_count)`, `$(cuegfx:project)`, `$(cuegfx:app_version)`
+- Q&A: `$(cuegfx:questions_new)`, `$(cuegfx:questions_live)`, `$(cuegfx:qa_active_text)`, `$(cuegfx:qa_pending_text)`, `$(cuegfx:qa_pending_author)`, `$(cuegfx:polls_open)`
 - je Grafik `g_<name>_live`, `g_<name>_state`, bei Timern `g_<name>_timer`, bei Spielständen `g_<name>_score_a` usw.
 - alle CueGFX-Textvariablen als `var_<name>`, Listen als `list_<name>`
 
 ## Feedbacks
-Grafik auf Sendung · Grafik in Vorschau · Take möglich · Timer läuft · Timer unter Schwelle · Team führt · Umfrage offen · Liste auf Position · Neue Publikumsfragen.
+Grafik auf Sendung · Grafik in Vorschau · Take möglich · Timer läuft · Timer unter Schwelle · Team führt · Umfrage offen · Liste auf Position · Neue Publikumsfragen · Aktive Frage vorhanden · Q&A-Einstellung aktiv · Wartende Frage enthält Sperrwort.

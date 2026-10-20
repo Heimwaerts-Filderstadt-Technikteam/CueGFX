@@ -217,3 +217,9 @@ Jeder erfolgreiche Build erscheint mit allen Installern unter **Releases** im Re
 Für einen neuen Versionssprung (z. B. auf 1.2) einfach `"version"` in `package.json` auf `1.2.0` setzen.
 Die Version samt Build-Nummer und Commit steht in der App unter *Einstellungen → Über*, im Fenstertitel und im Menü *Hilfe → Über CueGFX*.
 Lokal gebaute Apps zeigen „lokal gebaut“.
+
+### Companion-Modul
+
+Das Modul in `companion-module/` hat einen eigenen Workflow (*Actions → Companion-Modul*). Er läuft automatisch bei jeder Änderung im Ordner und veröffentlicht ein Release **„Companion-Modul <Version>“** mit der Datei `cuegfx-companion-<Version>.tgz`.
+Versionierung wie bei der App: Haupt- und Nebenversion aus `companion-module/package.json` + Build-Nummer, eine Eingabe beim manuellen Start oder ein Tag `companion-v1.2.0`.
+Installation in Companion (ab 4.0): *Modules → Import module package*.
