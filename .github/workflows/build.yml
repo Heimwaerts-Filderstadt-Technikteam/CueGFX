@@ -29,7 +29,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-latest,   name: mac-arm64, cmd: 'npx electron-builder --mac --arm64 -c.mac.identity=-' }
+          # Apple Silicon wird auf dem Intel-Mac cross-kompiliert – arm64-Runner sind bei GitHub oft ausgelastet
+          - { os: macos-15-intel, name: mac-arm64, arch: arm64, cmd: 'npx electron-builder --mac --arm64 -c.mac.identity=-' }
           - { os: macos-15-intel, name: mac-x64,   cmd: 'npx electron-builder --mac --x64 -c.mac.identity=-' }
           - { os: windows-latest, name: windows,   cmd: 'npx electron-builder --win' }
           - { os: ubuntu-22.04,   name: linux,     cmd: 'npx electron-builder --linux' }
@@ -109,7 +110,17 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Native Module (DeckLink + NDI)
-        run: node scripts/build-native.js --optional
+        shell: bash
+        run: |
+          if [ -n "${{ matrix.arch }}" ]; then export npm_config_arch="${{ matrix.arch }}"; echo "Cross-Compile für ${npm_config_arch}"; fi
+          node scripts/build-native.js --optional
+          if [ "$RUNNER_OS" = "macOS" ]; then for f in native/*/build/Release/*.node; do [ -f "$f" ] && lipo -archs "$f" | sed "s#^#$f: #"; done; fi
+          if [ -n "${{ matrix.arch }}" ]; then
+            for f in native/*/build/Release/*.node; do
+              [ -f "$f" ] || continue
+              lipo -archs "$f" | grep -qw "${{ matrix.arch }}" || { echo "::error::$f ist nicht für ${{ matrix.arch }} gebaut"; exit 1; }
+            done
+          fi
 
       - name: Tests
         run: npm test
