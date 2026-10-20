@@ -153,7 +153,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: CueGFX-${{ steps.ver.outputs.version }}-${{ matrix.name }}
-          retention-days: 14
+          retention-days: 1   # Dateien liegen dauerhaft im Release; spart Actions-Speicher
           path: |
             dist/*.dmg
             dist/*.zip
