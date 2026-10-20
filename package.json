@@ -56,19 +56,22 @@
       "icon": "build/icon.png",
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "hardenedRuntime": true
+      "hardenedRuntime": true,
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
     },
     "win": {
       "target": [
         "nsis",
         "portable"
       ],
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "artifactName": "${productName}-${version}-win-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true
+      "createDesktopShortcut": true,
+      "artifactName": "${productName}-${version}-win-${arch}-Setup.${ext}"
     },
     "linux": {
       "target": [
@@ -85,7 +88,11 @@
         }
       },
       "icon": "build/icon.png",
-      "maintainer": "CueGFX <support@cuegfx.app>"
+      "maintainer": "CueGFX <support@cuegfx.app>",
+      "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-win-${arch}-Portable.${ext}"
     }
   },
   "engines": {
