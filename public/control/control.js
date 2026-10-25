@@ -7,7 +7,7 @@
   const client = new CueClient({ role: 'control' });
 
   const S = {
-    project: null, vars: {}, media: [], hw: null, chat: [], chatSources: [], chatTypes: {}, chatPresets: [], chatSummary: '', chatFilter: '', chatOpen: {},
+    project: null, vars: {}, media: [], hw: null, sysFonts: null, chat: [], chatSources: [], chatTypes: {}, chatPresets: [], chatSummary: '', chatFilter: '', chatOpen: {},
     tab: 'graphics', sel: localStorage.getItem('cue.sel') || null, search: '', pgmOut: localStorage.getItem('cue.pgm') || '1', info: null,
     qaFilter: '', qaSort: 'likes', dlDraft: null, dsDraft: null, ndiDraft: null
   };
@@ -22,6 +22,10 @@
   const outputs = () => (S.project ? S.project.settings.outputs : []);
 
   /* ---------- Medien ---------- */
+  async function loadSysFonts() {
+    try { const r = await api('/api/system-fonts'); if (r.ready) { S.sysFonts = r.families.map((f) => f.family); if (S.tab === 'theme') renderTab(); } } catch (_) {}
+  }
+  setTimeout(loadSysFonts, 500);
   async function reloadMedia() {
     try { S.media = await api('/api/media'); } catch (_) { S.media = []; }
     mediaListeners.forEach((f) => { try { f(); } catch (_) {} });
@@ -32,6 +36,7 @@
     media: () => S.media, reloadMedia,
     polls: () => (S.project ? S.project.polls : []),
     fonts: fontNames,
+    sysFonts: () => S.sysFonts || [],
     onMediaChange: (f) => { mediaListeners.add(f); },
     sub: (s) => subVars(s),
     themeVars: () => themeVars()
@@ -70,6 +75,7 @@
     renderAll();
   });
   client.on('hw', (m) => { S.hw = m; if (S.tab === 'outputs') renderTab(); });
+  client.on('sysFonts', (m) => { S.sysFonts = m.families || []; if (S.tab === 'theme') renderTab(); });
   client.on('chatLog', (m) => { S.chat = m.log || []; if (S.tab === 'chat') renderTab(); });
   client.on('chat', (m) => { S.chat.push(m.msg); if (S.chat.length > 500) S.chat.shift(); if (S.tab === 'chat') appendChat(m.msg); });
   client.on('chatSources', (m) => {
@@ -553,9 +559,13 @@
     const presets = h('div', { class: 'row' }, Object.entries(T.THEME_PRESETS).map(([key, p]) =>
       h('button', { class: 'btn' + (th.preset === key ? ' on' : ''), onclick: () => run('theme.preset', { preset: key }), style: { borderLeft: `6px solid ${p.primary}` } }, p.name)));
     ed.appendChild(h('div', { class: 'card' }, h('h3', null, 'Vorlagen'), presets, h('p', { class: 'hint' }, 'Eine Vorlage überschreibt Farben, Schriften und Animation. Danach beliebig anpassen.')));
-    const fonts = SYSTEM_FONTS.concat(fontNames().map((f) => [`"${f}", sans-serif`, `${f} (hochgeladen)`]));
-    if (!fonts.find((f) => f[0] === th.font)) fonts.unshift([th.font, th.font]);
-    if (!fonts.find((f) => f[0] === th.headingFont)) fonts.unshift([th.headingFont, th.headingFont]);
+    const sys = S.sysFonts || [];
+    const fonts = [{ group: 'Standard (überall verfügbar)', options: SYSTEM_FONTS }];
+    if (fontNames().length) fonts.push({ group: 'Hochgeladen (Medien)', options: fontNames().map((f) => [`"${f}", sans-serif`, f]) });
+    fonts.push({ group: sys.length ? `Auf diesem Rechner installiert (${sys.length})` : 'Installierte Schriften werden gesucht …', options: sys.map((f) => [`"${f}", sans-serif`, f]) });
+    const known = (v) => fonts.some((g) => g.options.some((o) => o[0] === v));
+    const extra = [th.font, th.headingFont].filter((v, i, a) => v && !known(v) && a.indexOf(v) === i).map((v) => [v, v.replace(/"/g, '').split(',')[0] + ' (aktuell)']);
+    if (extra.length) fonts.unshift({ group: 'Aktuell', options: extra });
     const F = (def) => UI.field(def, th[def.key], (v) => set(def.key, v), env);
     const colors = h('div', { class: 'grid3' }, [
       { key: 'primary', label: 'Primärfarbe', type: 'color' }, { key: 'secondary', label: 'Sekundärfarbe', type: 'color' }, { key: 'accent', label: 'Akzent', type: 'color' },
@@ -566,7 +576,10 @@
       { key: 'fontScale', label: 'Schriftgröße %', type: 'number', min: 50, max: 250 }, { key: 'radius', label: 'Eckenradius px', type: 'number', min: 0, max: 80 },
       { key: 'shadow', label: 'Schattenstärke (0–1)', type: 'number', min: 0, max: 1, step: 0.05 }, { key: 'safeMargin', label: 'Sicherer Rand px', type: 'number', min: 0, max: 300 },
       { key: 'textShadow', label: 'Textschatten', type: 'toggle' }].map(F)),
-    h('p', { class: 'hint' }, 'Eigene Schriften (TTF, OTF, WOFF, WOFF2) im Tab „Medien“ hochladen – sie erscheinen dann hier in der Auswahl.')));
+    h('div', { class: 'font-prev' },
+      h('div', { style: { fontFamily: th.headingFont, fontWeight: 700, fontSize: '26px' } }, 'Überschrift – Herzlich willkommen'),
+      h('div', { style: { fontFamily: th.font, fontSize: '17px', marginTop: '4px' } }, 'Fließtext: Äpfel, Öfen & Übermut – 0123456789')),
+    h('p', { class: 'hint' }, 'Alle auf diesem Rechner installierten Schriften stehen zur Auswahl. Ausgänge in OBS/vMix auf anderen Rechnern laden sie automatisch vom CueGFX-Server (außer Schriftsammlungen .ttc – die dort ebenfalls installieren). Eigene Schriften (TTF, OTF, WOFF, WOFF2) lassen sich zusätzlich im Tab „Medien“ hochladen.')));
     ed.appendChild(h('div', { class: 'card' }, h('h3', null, 'Animation'), h('div', { class: 'grid3' }, [
       { key: 'animation', label: 'Standard-Animation', type: 'select', options: T.ANIMATIONS.filter((a) => a[0] !== 'theme') },
       { key: 'animDuration', label: 'Dauer (ms)', type: 'number', min: 0, max: 5000, step: 50 }].map(F))));

@@ -11,6 +11,7 @@ const { createZip, readZip } = require('./zip');
 const QR = require('./qrcode');
 const { fetchSheet } = require('./sheets');
 const { ChatHub } = require('./chat/hub');
+const { SystemFonts } = require('./sysfonts');
 const { createAudience } = require('./audience');
 const Types = require('../../public/shared/graphic-types.js');
 
@@ -44,6 +45,7 @@ class CueServer extends EventEmitter {
     this._audDirty = true;
     this._audTimer = null;
     this.chatLog = [];
+    this.sysFonts = new SystemFonts(opts.fontDirs ? { dirs: opts.fontDirs } : undefined);
     this.chat = new ChatHub(this.store, opts.chatOpts);
     this.chat.on('message', (m) => {
       this.chatLog.push(m);
@@ -74,6 +76,10 @@ class CueServer extends EventEmitter {
         this._restoreAutoHide();
         this.hwTimer = setInterval(() => this._pushHardware(), 1000);
         this.chat.init();
+        this.sysFonts.scan().then((n) => {
+          console.log(`[CueGFX] ${n} installierte Schriftfamilien gefunden (${this.sysFonts.ms} ms)`);
+          this._broadcastControl({ t: 'sysFonts', families: this.sysFonts.names() });
+        }).catch((e) => { this.sysFonts.error = e.message; });
         resolve(this.port);
       });
     });
@@ -193,6 +199,13 @@ class CueServer extends EventEmitter {
       this.ws.broadcast(s, (c) => c.role !== 'audience');
       this.emit('state', this.project);
     }, 16);
+  }
+
+  /* Installierte Schriften, die im Projekt (Theme oder Grafiken) verwendet werden */
+  _usedSystemFonts() {
+    const p = this.project;
+    const text = JSON.stringify([p.theme, p.graphics.map((g) => g.data)]);
+    return this.sysFonts.names().filter((n) => text.includes('\\"' + n + '\\"') || text.includes('"' + n + '"') || text.includes("'" + n + "'"));
   }
 
   _chatSourcesPayload() { return Object.assign({ t: 'chatSources', sources: this.chat.list(), summary: this.chat.summary() }, ChatHub.types()); }
@@ -660,7 +673,7 @@ class CueServer extends EventEmitter {
   }
 
   async _api(req, res, url, route) {
-    const open = route === 'qr.svg' || route === 'fonts.css' || route === 'info' || route === 'theme.css';
+    const open = route === 'qr.svg' || route === 'fonts.css' || route === 'info' || route === 'theme.css' || route.startsWith('sysfont/');
     if (!open && !this._pinOk(req, url)) throw new HttpError(401, 'PIN erforderlich');
     const parts = route.split('/').filter(Boolean);
     const m = req.method;
@@ -675,8 +688,18 @@ class CueServer extends EventEmitter {
         const fam = f.name.replace(/\.[^.]+$/, '');
         return `@font-face{font-family:"${fam.replace(/"/g, '')}";src:url("/media/${encodeURIComponent(f.name)}");font-display:block;}`;
       }).join('\n');
+      const sys = this.sysFonts.ready ? this.sysFonts.css(this._usedSystemFonts()) : '';
       res.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'no-cache' });
-      res.end(css); return;
+      res.end(css + (sys ? '\n' + sys : '')); return;
+    }
+    if (route === 'system-fonts') return this._json(res, { ready: this.sysFonts.ready, families: this.sysFonts.list() });
+    if (parts[0] === 'sysfont' && parts[1]) {
+      // Nur Dateien aus der Scan-Liste ausliefern (Index), nie beliebige Pfade
+      const file = this.sysFonts.file(parseInt(parts[1], 10));
+      if (!file || !fs.existsSync(file)) throw new HttpError(404, 'Schrift nicht gefunden');
+      const ext = path.extname(file).toLowerCase();
+      res.writeHead(200, { 'Content-Type': MIME[ext] || 'font/ttf', 'Cache-Control': 'public, max-age=86400', 'Access-Control-Allow-Origin': '*' });
+      fs.createReadStream(file).pipe(res); return;
     }
     if (route === 'info') return this._json(res, { app: 'CueGFX', version: VERSION, build: BUILD, port: this.port, lan: this.lanUrls(), pin: !!this.store.config.accessPin, desktop: !!this.hooks.desktop });
 

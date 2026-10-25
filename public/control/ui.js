@@ -164,7 +164,9 @@
         break;
       }
       case 'select': {
-        input = h('select', { onchange: () => onChange(input.value) }, def.options.map(([v, l]) => h('option', { value: v }, l)));
+        // Optionen: [Wert, Text] oder { group: 'Titel', options: [[Wert, Text], …] }
+        const opt = ([v, l]) => h('option', { value: v }, l);
+        input = h('select', { onchange: () => onChange(input.value) }, def.options.map((o) => Array.isArray(o) ? opt(o) : h('optgroup', { label: o.group }, o.options.map(opt))));
         const setSel = (v) => { input.value = v === undefined || v === null ? '' : String(v); if (input.selectedIndex < 0 && input.options.length) input.selectedIndex = 0; };
         setSel(value);
         setValue = (v) => { if (!isFocused(input)) setSel(v); };

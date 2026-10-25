@@ -112,7 +112,7 @@
         { key: 'text', label: 'Text', type: 'textarea', full: true },
         { key: 'color', label: 'Farbe', type: 'color' }, { key: 'fontSize', label: 'Größe (px)', type: 'number', min: 4 },
         { key: 'fontWeight', label: 'Stärke', type: 'select', default: '700', options: [['300', 'Leicht'], ['400', 'Normal'], ['500', 'Medium'], ['600', 'Halbfett'], ['700', 'Fett'], ['800', 'Extrafett'], ['900', 'Black']] },
-        { key: 'font', label: 'Schrift', type: 'select', default: '', options: FONTS.concat((env.fonts ? env.fonts() : []).map((f) => [`"${f}"`, f])) },
+        { key: 'font', label: 'Schrift', type: 'select', default: '', options: [{ group: 'Standard', options: FONTS }].concat((env.fonts && env.fonts().length) ? [{ group: 'Hochgeladen', options: env.fonts().map((f) => [`"${f}"`, f]) }] : [], (env.sysFonts && env.sysFonts().length) ? [{ group: 'Installiert', options: env.sysFonts().map((f) => [`"${f}"`, f]) }] : []) },
         { key: 'align', label: 'Ausrichtung', type: 'select', default: 'left', options: [['left', 'Links'], ['center', 'Mitte'], ['right', 'Rechts']] },
         { key: 'valign', label: 'Vertikal', type: 'select', default: 'center', options: [['top', 'Oben'], ['center', 'Mitte'], ['bottom', 'Unten']] },
         { key: 'letterSpacing', label: 'Zeichenabstand', type: 'number', step: 0.5 },

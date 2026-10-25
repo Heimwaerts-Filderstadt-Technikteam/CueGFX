@@ -143,6 +143,18 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
     ctl.w.close(); aud.w.close();
   } else console.log('  (WebSocket-Test übersprungen – Node 22 oder neuer nötig)');
 
+  // Installierte Schriften
+  for (let i = 0; i < 50 && !server.sysFonts.ready; i++) await new Promise((r) => setTimeout(r, 100));
+  const sf = (await get('/api/system-fonts')).body;
+  ok(sf.ready && Array.isArray(sf.families), `Schriftsuche: ${sf.families.length} installierte Familien`);
+  if (sf.families.length) {
+    const fam = sf.families[0].family;
+    server.exec('theme.update', { theme: { headingFont: `"${fam}", sans-serif` } });
+    const css = (await get('/api/fonts.css')).body.toString();
+    ok(css.includes(`font-family:"${fam}"`), `Verwendete Systemschrift „${fam}“ steht in fonts.css`);
+  }
+  ok((await get('/api/sysfont/999999.ttf')).status === 404, 'Nur gescannte Schriftdateien werden ausgeliefert');
+
   await server.stop();
   fs.rmSync(dir, { recursive: true, force: true });
   console.log(`\n${passed} bestanden, ${failed} fehlgeschlagen`);

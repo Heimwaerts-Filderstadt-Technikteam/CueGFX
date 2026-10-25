@@ -280,3 +280,5 @@ a.btn { text-decoration: none; color: inherit; display: inline-block; }
 .chip button { background: none; border: 0; color: var(--fg3); padding: 0 4px; }
 .chip button:hover { color: #ff8b97; }
 .src-head .sp, .src-form .sp { flex: 1; }
+
+.font-prev { margin-top: 12px; padding: 12px 14px; border-radius: 8px; background: var(--bg2); border: 1px solid var(--line); }
