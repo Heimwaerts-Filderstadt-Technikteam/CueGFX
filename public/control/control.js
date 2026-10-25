@@ -385,7 +385,7 @@
     const box = h('div', { class: 'ctrlbar' }, info,
       h('button', { class: 'btn primary', onclick: () => run('qa.activeNext', { sort: S.qaSort || 'likes' }) }, 'Nächste Frage ▶'),
       h('button', { class: 'btn', onclick: () => run('qa.resolveActive') }, '✓ Aktive gelöst'),
-      h('button', { class: 'btn sm', onclick: () => { S.qaFilter = 'pending'; setTab('audience'); } }, 'Moderation öffnen'));
+      h('button', { class: 'btn sm', onclick: () => { S.qaFilter = 'open'; setTab('audience'); } }, 'Moderation öffnen'));
     editorExtras.push(() => {
       const qsAll = S.project.questions;
       const a = qsAll.find((q) => q.active);
@@ -613,23 +613,24 @@
   function qaRow(q, opts = {}) {
     const time = new Date(q.ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
     const acts = [];
+    const edit = h('button', { class: 'btn xs', title: 'Bearbeiten', onclick: () => editQuestion(q) }, '✎ Bearbeiten');
+    const reject = h('button', { class: 'btn xs danger', title: 'Ablehnen (verschwindet aus dem Fragenpool)', onclick: () => run('qa.reject', { id: q.id }) }, '✕ Ablehnen');
     if (q.status === 'pending') {
-      acts.push(h('button', { class: 'btn xs ok', title: 'Freigeben (in den Fragenpool)', onclick: () => run('qa.approve', { id: q.id }) }, '✓ Freigeben'));
-      acts.push(h('button', { class: 'btn xs danger', title: 'Ablehnen', onclick: () => run('qa.reject', { id: q.id }) }, '✕ Ablehnen'));
+      acts.push(h('button', { class: 'btn xs ok', title: 'Freigeben (in den Fragenpool)', onclick: () => run('qa.approve', { id: q.id }) }, '✓ Freigeben'), edit, reject);
+    } else if (q.status === 'live' && !q.resolved) {
+      acts.push(h('button', { class: 'btn xs' + (q.active ? ' on-acc' : ''), title: 'Als aktiv markieren (wird hervorgehoben)', onclick: () => run('qa.active', { id: q.id }) }, q.active ? '★ Aktiv' : '☆ Aktiv'),
+        h('button', { class: 'btn xs', title: 'Als gelöst markieren (wird ausgeblendet)', onclick: () => run('qa.resolve', { id: q.id }) }, '✓ Gelöst'), edit, reject);
     } else if (q.status === 'live') {
-      acts.push(h('button', { class: 'btn xs' + (q.active ? ' on-acc' : ''), title: 'Als aktiv markieren (hervorheben)', onclick: () => run('qa.active', { id: q.id }) }, q.active ? '★ Aktiv' : '☆ Aktiv'));
-      acts.push(h('button', { class: 'btn xs' + (q.resolved ? ' on' : ''), title: 'Als gelöst markieren (blendet aus)', onclick: () => run('qa.resolve', { id: q.id }) }, q.resolved ? '↺ Wieder offen' : '✓ Gelöst'));
-      acts.push(h('button', { class: 'pv', title: 'Einzeln in die Vorschau (Grafik „Publikumsfrage“)', onclick: () => run('qa.show', { id: q.id, live: false }) }, 'PVW'));
-      acts.push(h('button', { class: 'lv', title: 'Einzeln sofort auf Sendung (Grafik „Publikumsfrage“)', onclick: () => run('qa.show', { id: q.id }) }, 'LIVE'));
+      acts.push(h('button', { class: 'btn xs', title: 'Wieder in die offenen Fragen holen', onclick: () => run('qa.resolve', { id: q.id }) }, '↺ Wieder offen'), edit);
     } else {
       acts.push(h('button', { class: 'btn xs', onclick: () => run('qa.approve', { id: q.id }) }, '✓ Doch freigeben'));
     }
-    acts.push(h('button', { class: 'btn xs', title: 'Bearbeiten', onclick: () => editQuestion(q) }, '✎'));
     acts.push(h('button', { class: 'btn xs danger', title: 'Löschen', onclick: () => run('qa.remove', { id: q.id }) }, '🗑'));
     return h('div', { class: `q ${q.status}${q.active ? ' active' : ''}${q.resolved ? ' resolved' : ''}` },
       h('div', { class: 'q-likes', title: 'Likes' }, h('span', null, '▲'), h('b', null, q.likes || 0)),
       h('div', null,
         q.active ? h('span', { class: 'pill warn', style: { marginBottom: '4px', display: 'inline-block' } }, 'AKTIV') : null,
+        q.status === 'pending' ? h('span', { class: 'pill', style: { marginBottom: '4px', display: 'inline-block', background: '#3a2f12', color: '#ffd27a' } }, 'NEU – wartet auf Freigabe') : null,
         h('div', { class: 'qt' }, q.text),
         h('div', { class: 'qm' }, `${q.author} · ${time}${q.edited ? ' · bearbeitet' : ''}`,
           (q.flagged || []).length ? h('span', { class: 'pill err', style: { marginLeft: '6px' }, title: 'Sperrwort-Treffer' }, '⚑ ' + q.flagged.join(', ')) : null)),
@@ -691,19 +692,23 @@
     const liveOpen = p.questions.filter((q) => q.status === 'live' && !q.resolved);
     const resolved = p.questions.filter((q) => q.status === 'live' && q.resolved);
     const rejected = p.questions.filter((q) => q.status === 'rejected');
-    if (!['pending', 'live', 'resolved', 'rejected'].includes(S.qaFilter)) S.qaFilter = pending.length ? 'pending' : 'live';
+    if (!['open', 'resolved', 'rejected'].includes(S.qaFilter)) S.qaFilter = 'open';
     const sortSel = h('select', { class: 'inp', style: { width: 'auto', padding: '3px 6px' }, onchange: () => { S.qaSort = sortSel.value; renderTab(true); } },
       h('option', { value: 'likes' }, 'Beliebteste'), h('option', { value: 'newest' }, 'Neueste'), h('option', { value: 'oldest' }, 'Älteste'));
     sortSel.value = S.qaSort || 'likes';
-    const filters = [['pending', `Prüfen (${pending.length})`], ['live', `Live (${liveOpen.length})`], ['resolved', `Gelöst (${resolved.length})`], ['rejected', `Abgelehnt (${rejected.length})`]];
-    const lists = { pending, live: liveOpen, resolved, rejected };
+    const filters = [['open', `Offen (${pending.length + liveOpen.length})`], ['resolved', `Gelöst (${resolved.length})`], ['rejected', `Abgelehnt (${rejected.length})`]];
     const sorter = { likes: (a, b) => (b.likes - a.likes) || (a.ts - b.ts), newest: (a, b) => b.ts - a.ts, oldest: (a, b) => a.ts - b.ts }[sortSel.value];
-    let shown = lists[S.qaFilter].slice().sort(S.qaFilter === 'pending' ? (a, b) => a.ts - b.ts : sorter);
-    if (S.qaFilter === 'live') { const a = shown.find((q) => q.active); if (a) shown = [a].concat(shown.filter((q) => q !== a)); }
-    const qlist = h('div', { class: 'qlist' }, shown.length ? shown.map((q) => qaRow(q)) : h('div', { class: 'empty' }, { pending: 'Keine Fragen zu prüfen.', live: 'Keine offenen Fragen.', resolved: 'Noch nichts gelöst.', rejected: 'Nichts abgelehnt.' }[S.qaFilter]));
+    let shown;
+    if (S.qaFilter === 'open') {
+      // Reihenfolge: neue (zu prüfende) Fragen oben, dann die aktive, dann der Fragenpool
+      const pool = liveOpen.slice().sort(sorter);
+      const act = pool.find((q) => q.active);
+      shown = pending.slice().sort((a, b) => a.ts - b.ts).concat(act ? [act] : [], pool.filter((q) => q !== act));
+    } else shown = (S.qaFilter === 'resolved' ? resolved : rejected).slice().sort(sorter);
+    const qlist = h('div', { class: 'qlist' }, shown.length ? shown.map((q) => qaRow(q)) : h('div', { class: 'empty' }, { open: 'Keine offenen Fragen.', resolved: 'Noch nichts gelöst.', rejected: 'Nichts abgelehnt.' }[S.qaFilter]));
     const active = p.questions.find((q) => q.active);
     const bulk = [];
-    if (S.qaFilter === 'pending' && pending.length) bulk.push(h('button', { class: 'btn xs ok', onclick: () => run('qa.approveAll') }, 'Alle freigeben (ohne Sperrwort-Treffer)'));
+    if (S.qaFilter === 'open' && pending.length > 1) bulk.push(h('button', { class: 'btn xs ok', onclick: () => run('qa.approveAll') }, 'Alle freigeben (ohne Sperrwort-Treffer)'));
     if (S.qaFilter === 'resolved' && resolved.length) bulk.push(h('button', { class: 'btn xs danger', onclick: async () => { if (await UI.confirm('Gelöste Fragen löschen?', 'Gelöste und abgelehnte Fragen werden entfernt.', 'Löschen')) run('qa.clear', { scope: 'resolved' }); } }, 'Gelöste löschen'));
     if (S.qaFilter === 'rejected' && rejected.length) bulk.push(h('button', { class: 'btn xs danger', onclick: () => run('qa.clear', { scope: 'rejected' }) }, 'Abgelehnte löschen'));
     ed.appendChild(h('div', { class: 'card' },
