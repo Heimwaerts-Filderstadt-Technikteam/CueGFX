@@ -244,14 +244,16 @@
             m.style.objectFit = d.fit;
           }
           m.loop = false;
-          m.muted = !!d.muted || !c.audio;
+          // Monitor in der Steuerung: Ton nur messen (nicht hörbar), sonst normal stummschalten
+          if (c.monitor && c.monitor.attach(g.id, m, () => cur)) m.muted = !!d.muted;
+          else m.muted = !!d.muted || !c.audio;
           if (!restart) { m.volume = Math.max(0, Math.min(1, (Number(d.volume) || 0) / 100)); return; }
           shownAt = g.shownAt;
           endedSent = false;
           if (m.getAttribute('src') !== src) m.setAttribute('src', src);
           if (src) startPlayback(c);
         },
-        destroy() { clearInterval(fadeTimer); m.pause(); m.removeAttribute('src'); m.load(); }
+        destroy() { clearInterval(fadeTimer); if (cur && ctxRef && ctxRef.monitor) ctxRef.monitor.detach(cur.id); m.pause(); m.removeAttribute('src'); m.load(); }
       };
     };
   }

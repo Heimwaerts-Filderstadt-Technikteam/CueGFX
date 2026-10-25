@@ -17,6 +17,67 @@
 
   if (params.get('guides') === '1') document.body.classList.add('guides');
 
+  /* ---------- Monitor-Modus (nur Vorschau-Fenster in der Steuerung, ?monitor=1) ----------
+     Misst Pegel und Restzeit laufender Video-/Audio-Grafiken und meldet sie an die Steuerung.
+     Der Ton wird dabei nur analysiert, nicht hörbar ausgegeben. */
+  const Mon = params.get('monitor') === '1' && window.parent !== window ? (function () {
+    let ac = null, sink = null;
+    const items = new Map();
+    const audioCtx = () => {
+      if (!ac) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        ac = new AC();
+        sink = ac.createGain(); sink.gain.value = 0; sink.connect(ac.destination);
+      }
+      if (ac.state === 'suspended') ac.resume().catch(() => {});
+      return ac;
+    };
+    window.addEventListener('message', (e) => { if (e.source === window.parent && e.data && e.data.cueMon === 'resume' && ac) ac.resume().catch(() => {}); });
+    const db = (v) => (v > 1e-6 ? 20 * Math.log10(v) : -90);
+    function attach(id, m, getG) {
+      if (items.has(id) && items.get(id).m === m) return true;
+      const it = { m, getG, an: null, buf: new Float32Array(2048), mono: 0 };
+      try {
+        const a = audioCtx();
+        if (a) {
+          const src = m._cueSrc || (m._cueSrc = a.createMediaElementSource(m));
+          const split = a.createChannelSplitter(2);
+          src.connect(split);
+          it.an = [0, 1].map((ch) => { const x = a.createAnalyser(); x.fftSize = 2048; split.connect(x, ch); x.connect(sink); return x; });
+        }
+      } catch (e) { it.an = null; }
+      items.set(id, it);
+      return !!it.an;
+    }
+    function level(it, ch) {
+      const an = it.an && it.an[ch]; if (!an) return { rms: -90, peak: -90 };
+      an.getFloatTimeDomainData(it.buf);
+      let sum = 0, pk = 0;
+      for (let i = 0; i < it.buf.length; i++) { const v = it.buf[i]; sum += v * v; const a = v < 0 ? -v : v; if (a > pk) pk = a; }
+      return { rms: db(Math.sqrt(sum / it.buf.length)), peak: db(pk) };
+    }
+    setInterval(() => {
+      const media = [];
+      for (const [id, it] of items) {
+        const g = it.getG && it.getG();
+        if (!g || !it.m.isConnected) continue;
+        const d = g.data || {};
+        let L = level(it, 0), Rr = level(it, 1);
+        // Mono-Quellen: rechter Kanal bleibt stumm → linken Kanal spiegeln
+        if (Rr.peak <= -89 && L.peak > -60) it.mono++; else if (Rr.peak > -89) it.mono = 0;
+        if (it.mono > 3) Rr = L;
+        if (d.muted || it.m.paused) { L = { rms: -90, peak: -90 }; Rr = L; }
+        const dur = it.m.duration;
+        const end = Number(d.trimEnd) > 0 ? Math.min(Number(d.trimEnd), isFinite(dur) ? dur : Infinity) : dur;
+        media.push({ id, name: g.name, type: g.type, cur: it.m.currentTime || 0, end: isFinite(end) ? end : 0, start: Number(d.trimStart) || 0,
+          loop: !!d.loop, paused: it.m.paused, muted: !!d.muted, l: L, r: Rr, ready: !!it.an });
+      }
+      try { window.parent.postMessage({ cueMon: 'state', media }, location.origin); } catch (_) {}
+    }, 66);
+    return { attach, detach: (id) => items.delete(id) };
+  })() : null;
+
   /* ---------- Skalierung der 1920×1080-Bühne ---------- */
   let scale = 1;
   function fit() {
@@ -117,6 +178,7 @@
       get audio() { return audioEnabled(); },
       stageScale: () => 1,
       publicBase,
+      monitor: Mon,
       setFull: (on) => { inst.wrap.classList.toggle('full', on || !!inst.typeDef.fullscreen); },
       ended: (g) => { if (!isPreview) client.cmd('media.ended', { id: g.id, shownAt: g.shownAt }).catch(() => {}); }
     };

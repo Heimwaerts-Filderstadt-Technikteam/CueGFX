@@ -190,7 +190,8 @@
     const live = S.project.graphics.filter((g) => g.live);
     if (!live.length) { box.appendChild(h('div', { class: 'hint' }, 'Nichts auf Sendung.')); return; }
     box.appendChild(h('div', { class: 'hint', style: { marginBottom: '2px' } }, 'Auf Sendung:'));
-    for (const g of live) box.appendChild(h('span', { class: 'chip' }, g.name, h('button', { title: 'Ausblenden', onclick: () => run('graphic.hide', { id: g.id }) }, '✕')));
+    for (const g of live) box.appendChild(h('span', { class: 'chip', 'data-gid': g.id }, g.name, (g.type === 'video' || g.type === 'audio') ? h('b', { class: 'cd' }) : null, h('button', { title: 'Ausblenden', onclick: () => run('graphic.hide', { id: g.id }) }, '✕')));
+    updateMonitorOverlays();
   }
 
   function select(id) {
@@ -1174,7 +1175,7 @@
       for (const o of outputs()) sel.appendChild(h('option', { value: o.id }, `${o.id} · ${o.name}`));
     }
     sel.value = outputs().find((o) => o.id === cur) ? cur : '1';
-    const src = `/output/${sel.value}?audio=0`;
+    const src = `/output/${sel.value}?audio=0&monitor=1`;
     if ($('if-pgm').getAttribute('src') !== src) $('if-pgm').setAttribute('src', src);
   }
   $('pgm-out').addEventListener('change', () => { S.pgmOut = $('pgm-out').value; localStorage.setItem('cue.pgm', S.pgmOut); buildPgmSelect(); });
@@ -1191,6 +1192,77 @@
     }
   };
   new ResizeObserver(fitScreens).observe($('monitors'));
+
+  /* ---------- VU-Meter & Restzeit auf den Monitoren (nur Anzeige, wird nicht ausgegeben) ---------- */
+  const MON = { pvw: { media: [], at: 0 }, pgm: { media: [], at: 0 } };
+  const VU_MODES = [['over', 'VU: über Bild'], ['left', 'VU: links'], ['off', 'VU: aus']];
+  let vuMode = (() => { try { return localStorage.getItem('cue.vu') || 'over'; } catch (_) { return 'over'; } })();
+  const applyVuMode = () => {
+    $('monitors').dataset.vu = vuMode;
+    $('btn-vu-mode').textContent = (VU_MODES.find((m) => m[0] === vuMode) || VU_MODES[0])[1];
+    fitScreens();
+  };
+  $('btn-vu-mode').addEventListener('click', () => {
+    const i = VU_MODES.findIndex((m) => m[0] === vuMode);
+    vuMode = VU_MODES[(i + 1) % VU_MODES.length][0];
+    try { localStorage.setItem('cue.vu', vuMode); } catch (_) {}
+    applyVuMode();
+  });
+  applyVuMode();
+  window.addEventListener('message', (e) => {
+    if (e.origin !== location.origin || !e.data || e.data.cueMon !== 'state') return;
+    const key = e.source === $('if-pgm').contentWindow ? 'pgm' : e.source === $('if-pvw').contentWindow ? 'pvw' : null;
+    if (!key) return;
+    MON[key] = { media: e.data.media || [], at: Date.now() };
+  });
+  // Audio-Messung im Browser erst nach einer Bedienung erlaubt → bei jedem Klick fortsetzen
+  document.addEventListener('pointerdown', () => { for (const id of ['if-pvw', 'if-pgm']) { try { $(id).contentWindow.postMessage({ cueMon: 'resume' }, location.origin); } catch (_) {} } }, true);
+
+  const fmtLeft = (sec) => { sec = Math.max(0, Math.ceil(sec)); const m = Math.floor(sec / 60), s = sec % 60; return (m >= 60 ? Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
+  const remaining = (x) => (x.end > 0 ? x.end - x.cur : 0);
+  const DB_MIN = -60;
+  const pct = (dbv) => Math.max(0, Math.min(100, ((dbv - DB_MIN) / -DB_MIN) * 100));
+  const peakHold = {};
+  function drawVu(key) {
+    const el = $('vu-' + key); if (!el) return;
+    const list = (Date.now() - MON[key].at < 1000 ? MON[key].media : []).filter((x) => x.ready || x.type);
+    // Lauteste Quelle je Kanal (mehrere Videos/Audios gleichzeitig möglich)
+    const ch = ['l', 'r'].map((c) => list.reduce((a, x) => ({ rms: Math.max(a.rms, x[c].rms), peak: Math.max(a.peak, x[c].peak) }), { rms: -90, peak: -90 }));
+    if (!el.firstChild) el.innerHTML = '<div class="vu-ch"><i class="vu-fill"></i><i class="vu-pk"></i></div><div class="vu-ch"><i class="vu-fill"></i><i class="vu-pk"></i></div><div class="vu-scale"><span style="bottom:100%">0</span><span style="bottom:90%">-6</span><span style="bottom:70%">-18</span><span style="bottom:40%">-36</span></div>';
+    el.classList.toggle('idle', !list.length);
+    ch.forEach((c, i) => {
+      const k = key + i, now = Date.now();
+      if (!peakHold[k] || c.peak >= peakHold[k].v || now - peakHold[k].t > 1500) peakHold[k] = { v: c.peak, t: now };
+      const bar = el.children[i];
+      bar.children[0].style.clipPath = `inset(${(100 - pct(c.rms)).toFixed(1)}% 0 0 0)`;
+      bar.children[1].style.bottom = pct(peakHold[k].v) + '%';
+      bar.classList.toggle('clip', peakHold[k].v > -0.5);
+    });
+  }
+  function updateMonitorOverlays() {
+    for (const key of ['pvw', 'pgm']) {
+      const ov = $('ov-' + key); if (!ov) continue;
+      const fresh = Date.now() - MON[key].at < 1000;
+      const list = fresh ? MON[key].media.filter((x) => x.type === 'video' || x.type === 'audio') : [];
+      const html = list.map((x) => {
+        const left = remaining(x);
+        const warn = !x.loop && x.end > 0 && left <= 10 ? (left <= 5 ? ' crit' : ' warn') : '';
+        const t = x.end > 0 ? (x.loop ? '↻ ' : '−') + fmtLeft(left) : '…';
+        return `<div class="cd-box${warn}"><span class="cd-name">${String(x.name).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))}${x.paused ? ' · Pause' : ''}${x.muted ? ' · stumm' : ''}</span><span class="cd-time">${t}</span><i class="cd-bar" style="width:${x.end > 0 ? Math.min(100, ((x.cur - x.start) / Math.max(0.1, x.end - x.start)) * 100) : 0}%"></i></div>`;
+      }).join('');
+      if (ov.dataset.html !== html) { ov.dataset.html = html; ov.innerHTML = html; }
+      if (vuMode !== 'off') drawVu(key);
+    }
+    // Restzeit an den „Auf Sendung“-Chips
+    const pg = Date.now() - MON.pgm.at < 1000 ? MON.pgm.media : [];
+    document.querySelectorAll('#live-list .chip[data-gid] .cd').forEach((b) => {
+      const x = pg.find((m) => m.id === b.parentNode.dataset.gid);
+      const t = x && x.end > 0 ? (x.loop ? '↻ ' : '−') + fmtLeft(remaining(x)) : '';
+      if (b.textContent !== t) b.textContent = t;
+      b.classList.toggle('warn', !!x && !x.loop && x.end > 0 && remaining(x) <= 10);
+    });
+  }
+  setInterval(updateMonitorOverlays, 100);
   fitScreens();
 
   /* ---------- Kopfleiste & Tastatur ---------- */
