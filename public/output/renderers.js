@@ -134,7 +134,7 @@
   };
 
   /* ---------------- Social / Chat ---------------- */
-  const PLATFORM = { twitch: ['#9146ff', 'T'], youtube: ['#ff0000', '▶'], instagram: ['#d62976', 'IG'], x: ['#000', 'X'], facebook: ['#1877f2', 'f'], custom: ['var(--primary)', '★'] };
+  const PLATFORM = { twitch: ['#9146ff', 'T'], youtube: ['#ff0000', '▶'], instagram: ['#d62976', 'IG'], x: ['#000', 'X'], facebook: ['#1877f2', 'f'], tiktok: ['#010101', '♪'], kick: ['#53fc18', 'K'], custom: ['var(--primary)', '★'] };
   R.social = () => {
     const el = div('soc');
     return {
@@ -144,8 +144,9 @@
         const pf = PLATFORM[d.platform] || PLATFORM.custom;
         const author = c.sub(d.author);
         el.style.setProperty('--nc', d.color || 'var(--primary)');
-        const av = d.avatar ? `style="background-image:url('${esc(c.media(d.avatar))}')"` : '';
-        setHtml(el, `<div class="av" ${av}>${d.avatar ? '' : esc(initials(author))}<div class="pf" style="background:${pf[0]}">${pf[1]}</div></div>` +
+        // Avatar als Bild über den Initialen – lädt es nicht (z. B. abgelaufener Link), bleiben die Initialen sichtbar
+        const av = d.avatar ? `<img class="avi" src="${esc(c.media(d.avatar))}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : '';
+        setHtml(el, `<div class="av">${esc(initials(author))}${av}<div class="pf" style="background:${pf[0]}">${pf[1]}</div></div>` +
           `<div><div class="who">${esc(author)}</div><div class="txt">${nl(c.sub(d.message))}</div></div>`);
       }
     };

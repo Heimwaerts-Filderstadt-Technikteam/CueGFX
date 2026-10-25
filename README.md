@@ -223,3 +223,18 @@ Lokal gebaute Apps zeigen „lokal gebaut“.
 Das Modul in `companion-module/` hat einen eigenen Workflow (*Actions → Companion-Modul*). Er läuft automatisch bei jeder Änderung im Ordner und veröffentlicht ein Release **„Companion-Modul <Version>“** mit der Datei `cuegfx-companion-<Version>.tgz`.
 Versionierung wie bei der App: Haupt- und Nebenversion aus `companion-module/package.json` + Build-Nummer, eine Eingabe beim manuellen Start oder ein Tag `companion-v1.2.0`.
 Installation in Companion (ab 4.0): *Modules → Import module package*.
+
+## Live-Chats (Reiter „Chat“)
+
+Beliebig viele Chat-Quellen gleichzeitig; alle Nachrichten laufen in einer gemeinsamen Liste zusammen und lassen sich mit **PVW/LIVE** in die Grafik „Social / Chat“ übernehmen (inkl. Avatar, Plattform-Symbol und Spendenbetrag). Aktivierte Quellen verbinden sich beim Start automatisch und warten, bis ihr live geht. Zugangsschlüssel bleiben in `config.json` dieses Rechners und werden nicht mit dem Projekt exportiert.
+
+| Plattform | Wie | Was ihr braucht |
+|---|---|---|
+| **Twitch** | öffentlicher Chat, anonym | nur den Kanalnamen |
+| **YouTube** | öffentlicher Live-Chat wie im Browser – oder offizielle API | `@kanal` bzw. Kanal-/Video-Link; optional API-Schlüssel (Tageskontingent reicht ca. 3 Std.) |
+| **Facebook** | offizielle Meta Graph API | eigene Meta-App + Seiten-Token mit `pages_read_engagement`, `pages_read_user_content` |
+| **Instagram** | offizielle Meta Graph API | Business-/Creator-Konto; Token mit `instagram_basic`, `instagram_manage_comments` (oder Instagram-Login-Token „IG…“) |
+| **TikTok** | über [Social Stream Ninja](https://socialstream.ninja) | Social Stream Ninja (Browser-Erweiterung/App) mit Sitzungs-ID; dort *Global settings → Mechanics*: „Enable remote API control“ und „Send chat messages to API server“ einschalten |
+| **Social Stream Ninja (alle)** | wie TikTok, ohne Filter | bringt zusätzlich Kick, Rumble, X u. v. m. – optional per Plattform-Filter einschränken |
+
+TikTok bietet keine offizielle Schnittstelle für Live-Kommentare; Social Stream Ninja liest den Chat im Browser mit und reicht ihn an CueGFX weiter.

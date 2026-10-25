@@ -57,6 +57,7 @@ class Store {
       decklinkOutputs: [],
       ndiOutputs: [],
       ndiLibPath: '',
+      chatSources: [],
       displayOutputs: [],
       lastSeenVersion: null
     }, readJson(this.configFile, {}));

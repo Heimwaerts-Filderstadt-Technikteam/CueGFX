@@ -87,7 +87,7 @@
   def('social', {
     label: 'Social / Chat', icon: '💬', category: 'Text',
     fields: [
-      { key: 'platform', label: 'Plattform', type: 'select', options: [['twitch', 'Twitch'], ['youtube', 'YouTube'], ['instagram', 'Instagram'], ['x', 'X'], ['facebook', 'Facebook'], ['custom', 'Sonstige']], default: 'twitch' },
+      { key: 'platform', label: 'Plattform', type: 'select', options: [['twitch', 'Twitch'], ['youtube', 'YouTube'], ['instagram', 'Instagram'], ['facebook', 'Facebook'], ['tiktok', 'TikTok'], ['kick', 'Kick'], ['x', 'X'], ['custom', 'Sonstige']], default: 'twitch' },
       { key: 'author', label: 'Name', type: 'text', default: 'zuschauer42' },
       { key: 'message', label: 'Nachricht', type: 'textarea', default: 'Grüße aus Stuttgart! 👋' },
       { key: 'avatar', label: 'Avatar', type: 'media', kind: 'image', default: '' },

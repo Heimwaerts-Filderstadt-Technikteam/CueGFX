@@ -7,7 +7,7 @@
   const client = new CueClient({ role: 'control' });
 
   const S = {
-    project: null, vars: {}, media: [], hw: null, chat: [], chatStatus: 'getrennt', chatChannel: '',
+    project: null, vars: {}, media: [], hw: null, chat: [], chatSources: [], chatTypes: {}, chatPresets: [], chatSummary: '', chatFilter: '', chatOpen: {},
     tab: 'graphics', sel: localStorage.getItem('cue.sel') || null, search: '', pgmOut: localStorage.getItem('cue.pgm') || '1', info: null,
     qaFilter: '', qaSort: 'likes', dlDraft: null, dsDraft: null, ndiDraft: null
   };
@@ -70,9 +70,12 @@
     renderAll();
   });
   client.on('hw', (m) => { S.hw = m; if (S.tab === 'outputs') renderTab(); });
-  client.on('chatLog', (m) => { S.chat = m.log || []; S.chatStatus = m.status; S.chatChannel = m.channel || ''; if (S.tab === 'chat') renderTab(); });
-  client.on('chat', (m) => { S.chat.push(m.msg); if (S.chat.length > 300) S.chat.shift(); if (S.tab === 'chat') appendChat(m.msg); });
-  client.on('chatStatus', (m) => { S.chatStatus = m.status; const el = $('chat-status'); if (el) el.textContent = m.status; });
+  client.on('chatLog', (m) => { S.chat = m.log || []; if (S.tab === 'chat') renderTab(); });
+  client.on('chat', (m) => { S.chat.push(m.msg); if (S.chat.length > 500) S.chat.shift(); if (S.tab === 'chat') appendChat(m.msg); });
+  client.on('chatSources', (m) => {
+    S.chatSources = m.sources || []; S.chatTypes = m.types || {}; S.chatPresets = m.presets || []; S.chatSummary = m.summary || '';
+    if (S.tab === 'chat') updateChatSources();
+  });
   client.on('media', () => reloadMedia());
   client.on('projects', () => {});
   client.on('sheetOk', () => {});
@@ -775,32 +778,115 @@
 
   /* ---------- Chat ---------- */
   let chatBox = null;
+  /* ---------- Chat ---------- */
+  const PF = { twitch: ['#9146ff', 'Twitch'], youtube: ['#ff0033', 'YouTube'], facebook: ['#1877f2', 'Facebook'], instagram: ['#d62976', 'Instagram'], tiktok: ['#25f4ee', 'TikTok'], kick: ['#53fc18', 'Kick'], x: ['#888', 'X'], custom: ['#8b8fa3', 'Chat'] };
+  const pf = (p) => PF[p] || [PF.custom[0], p || 'Chat'];
+  const pfBadge = (p) => h('span', { class: 'pfb', style: { background: pf(p)[0] } }, pf(p)[1]);
+  const stateCls = { live: 'ok', waiting: 'warn', error: 'err', off: '' };
+
   function chatRow(m) {
-    return h('div', { class: 'cm', style: { '--nc': m.color || '#9ab' } },
-      h('div', null, h('b', { style: { color: m.color || '' } }, m.author), ': ', m.text),
+    const hidden = S.chatFilter && m.platform !== S.chatFilter;
+    return h('div', { class: 'cm', 'data-pf': m.platform || '', style: { '--nc': m.color || '#9ab', display: hidden ? 'none' : '' } },
+      h('div', { class: 'cmain' },
+        h('div', { class: 'cav' }, (m.author || '?').slice(0, 1).toUpperCase(), m.avatar ? h('img', { src: m.avatar, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', onerror: (e) => e.target.remove() }) : null),
+        h('div', null,
+          h('div', { class: 'chd' }, pfBadge(m.platform), h('b', { style: { color: m.color || '' } }, m.author), m.badges ? h('span', { class: 'cbadge' }, m.badges) : null, m.amount ? h('span', { class: 'camt' }, '💰 ' + m.amount) : null),
+          h('div', { class: 'ctx' }, m.text))),
       h('div', { class: 'ca' },
         h('button', { class: 'pv', onclick: () => run('chat.show', { msgId: m.id, live: false }) }, 'PVW'),
         h('button', { class: 'lv', onclick: () => run('chat.show', { msgId: m.id }) }, 'LIVE')));
   }
   function appendChat(m) {
     const box = $('chat-box'); if (!box) return;
+    const empty = box.querySelector('.empty'); if (empty) empty.remove();
     const atTop = box.scrollTop < 20;
     box.prepend(chatRow(m));
-    while (box.childNodes.length > 300) box.lastChild.remove();
+    while (box.childNodes.length > 500) box.lastChild.remove();
     if (atTop) box.scrollTop = 0;
+    renderChatFilters();
   }
+
+  function sourceCard(src) {
+    const T = S.chatTypes[src.type] || { fields: [], label: src.type };
+    const open = !!S.chatOpen[src.id];
+    const title = src.name || T.label;
+    const head = h('div', { class: 'src-head' },
+      h('label', { class: 'switch', title: src.enabled ? 'Aktiv – verbindet automatisch' : 'Aus' }, h('input', { type: 'checkbox', checked: src.enabled, onchange: (e) => run('chat.source.update', { id: src.id, enabled: e.target.checked }) })),
+      pfBadge(src.name && /tiktok/i.test(src.name) ? 'tiktok' : src.platform), h('b', null, title),
+      h('span', { class: 'pill ' + (src.enabled ? stateCls[src.state] || '' : ''), 'data-status': src.id }, src.enabled ? src.status : 'aus'),
+      h('span', { class: 'sp' }),
+      h('span', { class: 'hint', style: { margin: 0 } }, `${src.count} Nachr.`),
+      h('button', { class: 'btn xs', title: 'Neu verbinden', onclick: () => run('chat.source.reconnect', { id: src.id }) }, '↻'),
+      h('button', { class: 'btn xs' + (open ? ' on' : ''), onclick: () => { S.chatOpen[src.id] = !open; renderTab(true); } }, open ? 'Schließen' : 'Einstellungen'));
+    const card = h('div', { class: 'src' + (src.enabled ? '' : ' off') }, head);
+    if (open) {
+      const inputs = {};
+      const name = h('input', { type: 'text', value: src.name, placeholder: T.label });
+      const form = h('div', { class: 'src-form' }, h('div', { class: 'field' }, h('label', null, 'Anzeigename'), name));
+      for (const f of T.fields) {
+        const inp = h('input', { type: f.secret ? 'password' : 'text', value: src.values[f.key] || '', placeholder: f.placeholder || '', autocomplete: 'off', spellcheck: 'false' });
+        if (f.secret) inp.addEventListener('focus', () => { if (inp.value.startsWith('••••')) inp.select(); });
+        inputs[f.key] = inp;
+        form.appendChild(h('div', { class: 'field' }, h('label', null, f.label), inp));
+      }
+      const save = () => {
+        const values = {}; for (const k in inputs) values[k] = inputs[k].value;
+        S.chatOpen[src.id] = false;
+        run('chat.source.update', { id: src.id, name: name.value, values, enabled: true });
+      };
+      form.appendChild(h('div', { class: 'row', style: { gridColumn: '1 / -1' } },
+        h('button', { class: 'btn primary sm', onclick: save }, 'Speichern & verbinden'),
+        h('span', { class: 'sp' }),
+        h('button', { class: 'btn xs danger', onclick: async () => { if (await UI.confirm('Chat-Quelle entfernen?', title, 'Entfernen')) run('chat.source.remove', { id: src.id }); } }, 'Entfernen')));
+      if (T.hint) form.appendChild(h('p', { class: 'hint', style: { gridColumn: '1 / -1', margin: 0 } }, T.hint));
+      form.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+      card.appendChild(form);
+    }
+    return card;
+  }
+
+  /* Nur Status-Pillen aktualisieren, wenn sich an der Liste sonst nichts geändert hat */
+  function updateChatSources() {
+    const box = $('chat-sources');
+    const sig = S.chatSources.map((s) => s.id + s.enabled + s.name + s.type).join('|');
+    if (!box || box.dataset.sig !== sig) { renderTab(); return; }
+    for (const src of S.chatSources) {
+      const pill = box.querySelector(`[data-status="${src.id}"]`);
+      if (pill) { pill.textContent = src.enabled ? src.status : 'aus'; pill.className = 'pill ' + (src.enabled ? stateCls[src.state] || '' : ''); }
+      const cnt = pill && pill.parentNode.querySelector('.hint'); if (cnt) cnt.textContent = `${src.count} Nachr.`;
+    }
+    const sum = $('chat-summary'); if (sum) sum.textContent = S.chatSummary;
+  }
+
+  function renderChatFilters() {
+    const bar = $('chat-filters'); if (!bar) return;
+    const present = [...new Set(S.chat.map((m) => m.platform).filter(Boolean))];
+    const sig = present.join(',') + '|' + S.chatFilter + '|' + S.chat.length;
+    if (bar.dataset.sig === sig) return;
+    bar.dataset.sig = sig;
+    bar.innerHTML = '';
+    const set = (p) => { S.chatFilter = p; bar.dataset.sig = ''; renderChatFilters(); document.querySelectorAll('#chat-box .cm').forEach((el) => { el.style.display = !p || el.dataset.pf === p ? '' : 'none'; }); };
+    bar.appendChild(h('button', { class: 'btn xs' + (!S.chatFilter ? ' on' : ''), onclick: () => set('') }, `Alle (${S.chat.length})`));
+    for (const p of present) bar.appendChild(h('button', { class: 'btn xs' + (S.chatFilter === p ? ' on' : ''), onclick: () => set(p) }, `${pf(p)[1]} (${S.chat.filter((m) => m.platform === p).length})`));
+  }
+
   function viewChat(ed) {
-    const ch = h('input', { class: 'inp', style: { width: '260px' }, value: S.chatChannel, placeholder: 'Twitch-Kanal (z. B. meinkanal)' });
-    ed.appendChild(h('div', { class: 'card' }, h('h3', null, 'Twitch-Chat'),
-      h('div', { class: 'row' }, ch,
-        h('button', { class: 'btn primary sm', onclick: () => run('chat.connect', { channel: ch.value }) }, 'Verbinden'),
-        h('button', { class: 'btn sm', onclick: () => run('chat.disconnect') }, 'Trennen'),
-        h('span', { class: 'pill', id: 'chat-status' }, S.chatStatus)),
-      h('p', { class: 'hint' }, 'Liest den öffentlichen Chat anonym mit – kein Login nötig. Eine Nachricht mit LIVE/PVW in die Grafik „Social / Chat“ übernehmen. Für YouTube, Instagram & Co. die Grafik „Social / Chat“ manuell befüllen.')));
+    const add = h('div', { class: 'row', style: { flexWrap: 'wrap', gap: '6px' } }, h('span', { class: 'hint', style: { margin: 0 } }, 'Hinzufügen:'),
+      ...S.chatPresets.map((p) => h('button', { class: 'btn sm', onclick: async () => {
+        try { const r = await cmd('chat.source.add', { preset: p.key }); if (r && r.id) { S.chatOpen[r.id] = true; renderTab(true); } } catch (_) {}
+      } }, '+ ' + p.label)));
+    const box = h('div', { id: 'chat-sources', class: 'srcs' });
+    box.dataset.sig = S.chatSources.map((s) => s.id + s.enabled + s.name + s.type).join('|');
+    for (const src of S.chatSources) box.appendChild(sourceCard(src));
+    if (!S.chatSources.length) box.appendChild(h('div', { class: 'empty' }, 'Noch keine Chat-Quelle. Plattform oben hinzufügen.'));
+    ed.appendChild(h('div', { class: 'card' }, h('h3', null, 'Chat-Quellen', h('span', { class: 'sp' }), h('span', { class: 'pill', id: 'chat-summary' }, S.chatSummary)), add, box,
+      h('p', { class: 'hint' }, 'Aktive Quellen verbinden sich beim Start von CueGFX automatisch und warten, bis ihr live geht. Zugangsschlüssel bleiben auf diesem Rechner und werden beim Projekt-Export nicht weitergegeben.')));
     chatBox = h('div', { class: 'chat', id: 'chat-box' });
     for (const m of S.chat.slice().reverse()) chatBox.appendChild(chatRow(m));
     if (!S.chat.length) chatBox.appendChild(h('div', { class: 'empty' }, 'Noch keine Nachrichten.'));
-    ed.appendChild(h('div', { class: 'card' }, h('h3', null, 'Nachrichten'), chatBox));
+    ed.appendChild(h('div', { class: 'card' }, h('h3', null, 'Nachrichten', h('span', { class: 'sp' }), h('div', { id: 'chat-filters', class: 'row', style: { gap: '4px', flexWrap: 'wrap' } }),
+      h('button', { class: 'btn xs', title: 'Liste leeren', onclick: () => run('chat.clear') }, 'Leeren')), chatBox));
+    renderChatFilters();
   }
 
   /* ---------- Ausgänge ---------- */

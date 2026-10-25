@@ -10,7 +10,7 @@ const { Store, uid, mediaKind } = require('./store');
 const { createZip, readZip } = require('./zip');
 const QR = require('./qrcode');
 const { fetchSheet } = require('./sheets');
-const { TwitchChat } = require('./twitch');
+const { ChatHub } = require('./chat/hub');
 const { createAudience } = require('./audience');
 const Types = require('../../public/shared/graphic-types.js');
 
@@ -44,13 +44,17 @@ class CueServer extends EventEmitter {
     this._audDirty = true;
     this._audTimer = null;
     this.chatLog = [];
-    this.twitch = new TwitchChat();
-    this.twitch.on('message', (m) => {
+    this.chat = new ChatHub(this.store, opts.chatOpts);
+    this.chat.on('message', (m) => {
       this.chatLog.push(m);
-      if (this.chatLog.length > 300) this.chatLog.shift();
+      if (this.chatLog.length > 500) this.chatLog.shift();
       this._broadcastControl({ t: 'chat', msg: m });
+      this.emit('chat', m);
     });
-    this.twitch.on('status', (s) => this._broadcastControl({ t: 'chatStatus', status: s }));
+    this.chat.on('change', () => {
+      clearTimeout(this._chatTimer);
+      this._chatTimer = setTimeout(() => this._broadcastControl(this._chatSourcesPayload()), 150);
+    });
     this._bcTimer = null;
     this._hwJson = '';
   }
@@ -69,6 +73,7 @@ class CueServer extends EventEmitter {
         this._restartSheets();
         this._restoreAutoHide();
         this.hwTimer = setInterval(() => this._pushHardware(), 1000);
+        this.chat.init();
         resolve(this.port);
       });
     });
@@ -78,7 +83,8 @@ class CueServer extends EventEmitter {
     clearInterval(this.hwTimer);
     for (const t of this.sheetTimers.values()) clearInterval(t);
     for (const t of this.autoHideTimers.values()) clearTimeout(t);
-    this.twitch.disconnect();
+    clearTimeout(this._chatTimer);
+    this.chat.stopAll();
     this.store.saveProjectNow();
     if (this.ws) this.ws.close();
     if (this.http) await new Promise((r) => this.http.close(() => r()));
@@ -147,7 +153,8 @@ class CueServer extends EventEmitter {
     else {
       c.send(JSON.stringify(this._statePayload()));
       if (c.role === 'control') {
-        c.send(JSON.stringify({ t: 'chatLog', log: this.chatLog, status: this.twitch.status, channel: this.twitch.channel }));
+        c.send(JSON.stringify({ t: 'chatLog', log: this.chatLog }));
+        c.send(JSON.stringify(this._chatSourcesPayload()));
         if (this._hwJson) c.send(this._hwJson);
       }
     }
@@ -187,6 +194,8 @@ class CueServer extends EventEmitter {
       this.emit('state', this.project);
     }, 16);
   }
+
+  _chatSourcesPayload() { return Object.assign({ t: 'chatSources', sources: this.chat.list(), summary: this.chat.summary() }, ChatHub.types()); }
 
   _broadcastControl(obj) { if (this.ws) this.ws.broadcast(JSON.stringify(obj), (c) => c.role === 'control'); }
 
@@ -486,14 +495,19 @@ class CueServer extends EventEmitter {
       }
 
       /* Chat */
-      case 'chat.connect': this.twitch.connect(a.channel); return true;
-      case 'chat.disconnect': this.twitch.disconnect(); return true;
+      case 'chat.connect': return { sourceId: this.chat.legacyConnect(a.channel) };
+      case 'chat.disconnect': return this.chat.disableAll();
+      case 'chat.source.add': return { id: this.chat.add(a.preset || a.type, a.values, { enable: !!a.enabled }) };
+      case 'chat.source.update': return this.chat.update(a.id, a);
+      case 'chat.source.remove': return this.chat.remove(a.id);
+      case 'chat.source.reconnect': return this.chat.reconnect(a.id);
+      case 'chat.clear': this.chatLog = []; this._broadcastControl({ t: 'chatLog', log: [] }); return true;
       case 'chat.show': {
         const m = this.chatLog.find((x) => x.id === a.msgId) || a.msg;
         if (!m) throw new HttpError(404, 'Nachricht nicht gefunden');
         let g = a.graphicId ? this.findGraphic(a.graphicId) : p.graphics.find((x) => x.type === 'social');
         if (!g) { g = this.store.makeGraphic('social', 'Chat-Nachricht'); p.graphics.push(g); }
-        Object.assign(g.data, { platform: m.platform || 'twitch', author: m.author, message: m.text, color: m.color || '' });
+        Object.assign(g.data, { platform: m.platform || 'twitch', author: m.author, message: m.amount ? `💰 ${m.amount}${m.text && !String(m.amount).toLowerCase().includes(String(m.text).toLowerCase()) ? ' · ' + m.text : ''}` : m.text, color: m.color || '', avatar: m.avatar || '' });
         if (a.live !== false) this._setLive(g, true); else g.preview = true;
         return done({ graphicId: g.id });
       }

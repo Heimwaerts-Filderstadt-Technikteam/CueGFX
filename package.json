@@ -11,7 +11,7 @@
     "build:decklink": "node scripts/build-decklink.js",
     "build:ndi": "node scripts/build-ndi.js",
     "build:native": "node scripts/build-native.js",
-    "test": "node scripts/smoke-test.js",
+    "test": "node scripts/smoke-test.js && node scripts/chat-test.js",
     "dist:mac": "node scripts/build-native.js --optional && electron-builder --mac",
     "dist:mac:local": "node scripts/build-native.js --optional && electron-builder --mac -c.mac.identity=-",
     "dist:mac:unsigned": "node scripts/build-native.js --optional && electron-builder --mac -c.mac.identity=null",
