@@ -680,7 +680,7 @@
   };
 
   /* ---------------- Umfrage ---------------- */
-  const audienceUrl = (c) => (c.publicBase ? c.publicBase() : location.origin) + '/audience';
+  const audienceUrl = (c) => (c.audienceUrl ? c.audienceUrl() : (c.publicBase ? c.publicBase() : location.origin) + '/audience');
   const qrImg = (url, cls) => `<img class="${cls || ''}" src="/api/qr.svg?text=${encodeURIComponent(url)}&border=2">`;
 
   R.poll = () => {

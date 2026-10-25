@@ -9,7 +9,7 @@
   :root { --bg: #0f1115; --card: #181b22; --card2: #1f232c; --line: #2a2f39; --fg: #eef1f5; --fg2: #a2aab6; --fg3: #6f7886; --acc: #e11d48; --acc2: #f59e0b; --ok: #1fb85a; --r: 14px; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding-bottom: 40px; }
-  .top { position: sticky; top: 0; z-index: 5; background: rgba(15, 17, 21, .92); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
   .top .in { max-width: 620px; margin: 0 auto; padding: 14px 16px 0; }
   h1 { font-size: 20px; margin: 0 0 10px; }
   .tabs { display: flex; gap: 4px; }
@@ -24,7 +24,7 @@
   .ask .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
   .ask input[type=text] { flex: 1; min-width: 0; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font: inherit; }
   .count { font-size: 12px; color: var(--fg3); margin-left: auto; }
-  button.primary { border: 0; border-radius: 10px; padding: 12px 18px; font: 700 15px system-ui, sans-serif; background: var(--acc); color: #fff; cursor: pointer; }
+  button.primary { border: 0; border-radius: calc(var(--r) * .7); padding: 12px 18px; font: 700 15px system-ui, sans-serif; background: var(--acc); color: #fff; cursor: pointer; }
   button.primary:disabled { opacity: .5; }
   .msg { padding: 10px 12px; border-radius: 10px; margin-top: 10px; font-size: 14px; display: none; }
   .msg.ok { display: block; background: #102a1b; color: #9ff0bf; } .msg.err { display: block; background: #3a1219; color: #ffb3bd; } .msg.info { display: block; background: #2b2410; color: #ffd27a; }
@@ -41,7 +41,7 @@
   .q .live { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #111; background: var(--acc2); border-radius: 99px; padding: 1px 8px; margin-bottom: 6px; }
   .like { flex: none; display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 48px; background: var(--card2); border: 1px solid var(--line); border-radius: 10px; color: var(--fg2); padding: 6px 4px; cursor: pointer; font: 700 14px system-ui, sans-serif; }
   .like svg { width: 20px; height: 20px; }
-  .like.on { color: var(--acc); border-color: var(--acc); background: #2a1219; }
+  .like.on { color: var(--acc); border-color: var(--acc); background: color-mix(in srgb, var(--acc) 14%, var(--card)); }
   .like:disabled { cursor: default; opacity: .6; }
   .mine { border-style: dashed; opacity: .85; }
   .tag { font-size: 11px; border-radius: 99px; padding: 1px 8px; background: #2b2410; color: #ffd27a; font-weight: 700; }
@@ -56,10 +56,10 @@
   .poll.multi .opt .mark { border-radius: 5px; }
   .opt.chosen { border-color: var(--ok); } .opt.chosen .mark { border-color: var(--ok); background: var(--ok); }
   .opt.chosen .mark::after { content: '✓'; color: #fff; font-size: 13px; }
-  .opt .res { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(225, 29, 72, .18); transition: width .6s; z-index: 0; }
+  .opt .res { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--acc) 20%, transparent); transition: width .6s; z-index: 0; }
   .opt > span { position: relative; z-index: 1; } .opt .pct { margin-left: auto; color: var(--fg2); font-weight: 700; }
   .stars { display: flex; gap: 6px; justify-content: center; margin: 6px 0; }
-  .stars button { background: none; border: 0; font-size: 38px; line-height: 1; color: #3a404c; cursor: pointer; padding: 2px; }
+  .stars button { background: none; border: 0; font-size: 38px; line-height: 1; color: var(--line); cursor: pointer; padding: 2px; }
   .stars button.on { color: var(--acc2); }
   .wc { display: flex; gap: 8px; } .wc input { flex: 1; min-width: 0; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font: inherit; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -69,11 +69,18 @@
   .avg { text-align: center; color: var(--fg2); font-size: 14px; margin-top: 6px; }
   .thanks { color: #9ff0bf; font-size: 13.5px; margin-top: 10px; }
   .off { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); background: #3a1219; color: #ffb3bd; padding: 8px 14px; border-radius: 99px; font-size: 13px; display: none; z-index: 9; }
+  .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .brand img { display: block; max-width: 70%; object-fit: contain; }
+  .brand h1 { margin: 0; }
+  .intro { color: var(--fg2); font-size: 14.5px; margin: -2px 0 10px; white-space: pre-line; }
+  .foot { max-width: 620px; margin: 8px auto 0; padding: 0 16px; color: var(--fg3); font-size: 12.5px; text-align: center; white-space: pre-line; }
 </style>
+<link rel="stylesheet" id="design-css" href="/api/audience.css">
 </head>
 <body>
 <div class="top"><div class="in">
-  <h1 id="title">Mitmachen</h1>
+  <div class="brand"><img id="logo" alt="" hidden><h1 id="title">Mitmachen</h1></div>
+  <p class="intro" id="intro" hidden></p>
   <div class="tabs" id="tabs">
     <button data-tab="qa" class="on">Fragen <span class="badge" id="b-qa" hidden></span></button>
     <button data-tab="polls">Umfragen <span class="badge" id="b-polls" hidden></span></button>
@@ -100,6 +107,7 @@
   </section>
   <section id="tab-polls" hidden><div id="polls"></div></section>
 </main>
+<p class="foot" id="foot" hidden></p>
 <div class="off" id="off">Verbindung wird wiederhergestellt …</div>
 <script src="/shared/client.js"></script>
 <script>
@@ -137,6 +145,15 @@
     pub = m;
     $('title').textContent = m.title || 'Mitmachen';
     document.title = m.title || 'Mitmachen';
+    const d = m.design || {};
+    if (d.v && $('design-css').dataset.v !== d.v) { $('design-css').dataset.v = d.v; $('design-css').href = '/api/audience.css?v=' + d.v; }
+    const logo = $('logo');
+    if (d.logo) { if (logo.getAttribute('src') !== d.logo) logo.src = d.logo; logo.style.height = (d.logoHeight || 56) + 'px'; logo.hidden = false; } else logo.hidden = true;
+    $('intro').textContent = d.intro || ''; $('intro').hidden = !d.intro;
+    $('foot').textContent = d.footer || ''; $('foot').hidden = !d.footer;
+    const pollsTab = document.querySelector('#tabs [data-tab="polls"]');
+    const showPolls = d.showPolls !== false || m.polls.length > 0;
+    pollsTab.hidden = !showPolls; $('tabs').hidden = !showPolls;
     const qa = m.qa;
     $('ask').hidden = !qa.open; $('qa-closed').hidden = !!qa.open;
     $('q').placeholder = qa.title || 'Stell deine Frage …';

@@ -143,6 +143,16 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
     ctl.w.close(); aud.w.close();
   } else console.log('  (WebSocket-Test übersprungen – Node 22 oder neuer nötig)');
 
+  // Öffentlicher Port nur für die Publikumsseite
+  server.store.config.audiencePort = 47000 + Math.floor(Math.random() * 2000);
+  await server._startPublic();
+  const pub = `http://127.0.0.1:${server.store.config.audiencePort}`;
+  const pst = async (u) => (await fetch(pub + u)).status;
+  ok(server.pubStatus === 'läuft' && (await (await fetch(pub + '/')).text()).includes('id="ask"'), 'Öffentlicher Port zeigt die Publikumsseite');
+  ok(await pst('/control') === 404 && await pst('/api/state') === 404 && await pst('/api/graphics') === 404 && await pst('/output/1') === 404, 'Öffentlicher Port sperrt Steuerung, API und Ausgänge');
+  server.exec('audience.access', { publicUrl: 'fragen.example.org' });
+  ok(server._audienceUrl() === 'https://fragen.example.org', 'Eigene Domain wird für QR-Codes verwendet');
+
   // Installierte Schriften
   for (let i = 0; i < 50 && !server.sysFonts.ready; i++) await new Promise((r) => setTimeout(r, 100));
   const sf = (await get('/api/system-fonts')).body;

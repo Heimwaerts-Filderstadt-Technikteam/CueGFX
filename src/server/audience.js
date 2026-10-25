@@ -12,6 +12,27 @@ const DEFAULT_QA = {
   allowLikes: true, showQuestions: true, maxLength: 300, allowAnonymous: true
 };
 
+/* Gestaltung der Publikumsseite */
+const DEFAULT_DESIGN = {
+  heading: '', intro: '', logo: '', logoHeight: 56, mode: 'dark',
+  primary: '#e11d48', accent: '#f59e0b', bg: '', card: '', text: '',
+  font: '', headingFont: '', radius: 14, footer: '', showPolls: true, customCss: ''
+};
+const COLOR_RE = /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%deg]+\)|[a-z]{3,20})$/i;
+function cleanDesign(d) {
+  const o = Object.assign({}, DEFAULT_DESIGN, d || {});
+  for (const k of ['heading', 'intro', 'footer']) o[k] = String(o[k] || '').slice(0, k === 'intro' ? 600 : 160);
+  for (const k of ['primary', 'accent', 'bg', 'card', 'text']) { const v = String(o[k] || '').trim(); o[k] = !v || COLOR_RE.test(v) ? v : DEFAULT_DESIGN[k]; }
+  for (const k of ['font', 'headingFont']) o[k] = String(o[k] || '').replace(/[;{}<>]/g, '').slice(0, 200);
+  o.logo = String(o.logo || '').slice(0, 200);
+  o.mode = o.mode === 'light' ? 'light' : 'dark';
+  o.logoHeight = Math.max(20, Math.min(200, Number(o.logoHeight) || 56));
+  o.radius = Math.max(0, Math.min(30, Number(o.radius) || 0));
+  o.showPolls = o.showPolls !== false;
+  o.customCss = String(o.customCss || '').slice(0, 20000);
+  return o;
+}
+
 /* ---------------- Sperrwörter ---------------- */
 const LEET = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', '@': 'a', $: 's' };
 function normalize(s) {
@@ -54,6 +75,7 @@ function censor(text, compiled) {
 /* ---------------- Migration ---------------- */
 function migrateAudience(p) {
   p.qaSettings = Object.assign({}, DEFAULT_QA, p.qaSettings || {});
+  p.audienceDesign = cleanDesign(p.audienceDesign);
   p.questions = (p.questions || []).map((q) => {
     const out = Object.assign({ likes: 0, likedBy: [], active: false, resolved: false, flagged: [], voter: '' }, q);
     if (out.status === 'new') out.status = 'pending';
@@ -209,6 +231,11 @@ function createAudience(server) {
         if (!['reject', 'moderate', 'censor'].includes(qs.blockedAction)) qs.blockedAction = 'moderate';
         return true;
       }
+      case 'audience.design': {
+        const p = server.project;
+        p.audienceDesign = cleanDesign(Object.assign({}, p.audienceDesign, a.design || {}));
+        return true;
+      }
       case 'qa.test': {
         // Sperrwörter testen (Steuerung)
         const c = compileBlocked(a.list !== undefined ? a.list : qs.blockedWords);
@@ -316,11 +343,20 @@ function createAudience(server) {
   }
 
   /* Öffentliche Daten für die Publikumsseite (für alle gleich) */
+  function designPublic(p) {
+    const d = p.audienceDesign || DEFAULT_DESIGN;
+    return {
+      intro: d.intro, footer: d.footer, showPolls: d.showPolls, logoHeight: d.logoHeight,
+      logo: d.logo ? (/^https?:/.test(d.logo) ? d.logo : '/media/' + encodeURIComponent(d.logo)) : '',
+      v: require('crypto').createHash('md5').update(JSON.stringify(d)).digest('hex').slice(0, 10)
+    };
+  }
   function publicState() {
     const p = server.project, qs = p.qaSettings;
     const questions = qs.showQuestions ? p.questions.filter((q) => q.status === 'live').map((q) => ({ id: q.id, author: q.author, text: q.text, likes: q.likes, active: q.active, resolved: q.resolved, ts: q.ts })) : [];
     return {
-      t: 'audience', title: p.name,
+      t: 'audience', title: (p.audienceDesign && p.audienceDesign.heading) || p.name,
+      design: designPublic(p),
       qa: { open: qs.open, requireName: qs.requireName, title: qs.title, allowLikes: qs.allowLikes, showQuestions: qs.showQuestions, maxLength: qs.maxLength, moderation: qs.moderation },
       questions,
       polls: p.polls.filter((x) => x.open).map((x) => {
@@ -367,4 +403,4 @@ function pollResults(poll) {
   return { total, respondents: poll.respondents || 0, options: poll.options.map((o) => ({ id: o.id, votes: o.votes })) };
 }
 
-module.exports = { createAudience, migrateAudience, compileBlocked, checkBlocked, censor, normalize, sortQuestions, pollResults, DEFAULT_QA, AudienceError };
+module.exports = { DEFAULT_DESIGN, cleanDesign, createAudience, migrateAudience, compileBlocked, checkBlocked, censor, normalize, sortQuestions, pollResults, DEFAULT_QA, AudienceError };

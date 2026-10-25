@@ -238,3 +238,14 @@ Beliebig viele Chat-Quellen gleichzeitig; alle Nachrichten laufen in einer gemei
 | **Social Stream Ninja (alle)** | wie TikTok, ohne Filter | bringt zusätzlich Kick, Rumble, X u. v. m. – optional per Plattform-Filter einschränken |
 
 TikTok bietet keine offizielle Schnittstelle für Live-Kommentare; Social Stream Ninja liest den Chat im Browser mit und reicht ihn an CueGFX weiter.
+
+## Publikumsseite: eigene Domain & Gestaltung
+
+**Eigene Domain (z. B. über Nginx Proxy Manager):** CueGFX öffnet zusätzlich einen öffentlichen Port (Standard **4002**), über den *ausschließlich* die Publikumsseite erreichbar ist – Fragen, Likes und Umfragen. Steuerung, Ausgänge und API bleiben auf dem Steuerungs-Port (4001) im lokalen Netz.
+
+1. DNS-Eintrag der Domain auf den Nginx Proxy Manager zeigen lassen.
+2. NPM → *Proxy Hosts → Add Proxy Host*: Domain, Scheme `http`, Forward Hostname/IP = IP des CueGFX-Rechners, Forward Port `4002`, **„Websockets Support“ einschalten**.
+3. Reiter *SSL*: Let's-Encrypt-Zertifikat, „Force SSL“.
+4. In CueGFX unter *Publikum → Eigene Adresse* die Domain eintragen – QR-Codes und `{{audience_url}}` verwenden dann diese Adresse.
+
+**Gestaltung:** Überschrift, Begrüßungstext, Logo, heller/dunkler Grundstil, Haupt- und Akzentfarbe, Hintergrund-/Karten-/Textfarbe, Schriften (Standard, hochgeladen oder auf dem Rechner installiert – werden an die Handys ausgeliefert), Eckenradius, Fußzeile und eigenes CSS. Änderungen erscheinen sofort auf allen Handys; rechts gibt es eine Live-Vorschau im Handyformat.

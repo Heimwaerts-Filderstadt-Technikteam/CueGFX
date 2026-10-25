@@ -58,6 +58,8 @@ class Store {
       ndiOutputs: [],
       ndiLibPath: '',
       chatSources: [],
+      audiencePort: 4002,
+      audiencePublicUrl: '',
       displayOutputs: [],
       lastSeenVersion: null
     }, readJson(this.configFile, {}));

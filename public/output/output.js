@@ -14,6 +14,7 @@
   const instances = new Map();
   let state = null, theme = {}, vars = {}, outCfg = null, lastCssKey = '', lastGraphicCss = '', info = {};
   const publicBase = () => (info.lan && info.lan[0]) || location.origin;
+  const audienceUrl = () => info.audienceUrl || publicBase() + '/audience';
 
   if (params.get('guides') === '1') document.body.classList.add('guides');
 
@@ -101,7 +102,7 @@
       case 'year': return String(d.getFullYear());
       case 'output': return outCfg ? outCfg.name : outputId;
       case 'project': return state ? state.name : '';
-      case 'audience_url': return publicBase() + '/audience';
+      case 'audience_url': return audienceUrl();
     }
     return undefined;
   }
@@ -178,6 +179,7 @@
       get audio() { return audioEnabled(); },
       stageScale: () => 1,
       publicBase,
+      audienceUrl,
       monitor: Mon,
       setFull: (on) => { inst.wrap.classList.toggle('full', on || !!inst.typeDef.fullscreen); },
       ended: (g) => { if (!isPreview) client.cmd('media.ended', { id: g.id, shownAt: g.shownAt }).catch(() => {}); }
@@ -210,7 +212,7 @@
     layout(inst, g);
     try { inst.r.update(g, inst.ctx); } catch (e) { console.error('Renderer-Fehler', g.type, e); }
     inst.lastJson = JSON.stringify(g.data);
-    inst.lastKey = inst.r.depKey ? inst.lastJson + '\u0001' + inst.r.depKey(g, state) : inst.lastJson;
+    inst.lastKey = (inst.r.depKey ? inst.lastJson + '\u0001' + inst.r.depKey(g, state) : inst.lastJson) + '\u0001' + (info.audienceUrl || '');
     const name = animName(g);
     if (inst.r.customAnim) { anim.className = 'g-anim'; inst.r.animIn && inst.r.animIn(); }
     else anim.className = `g-anim a-${name} in`;
@@ -265,7 +267,7 @@
       const json = JSON.stringify(g.data);
       layout(inst, g);
       // Grafiken, die Projektdaten anzeigen (Umfragen, Q&A), auch bei deren Änderung neu zeichnen
-      const key = inst.r.depKey ? json + '\u0001' + inst.r.depKey(g, state) : json;
+      const key = (inst.r.depKey ? json + '\u0001' + inst.r.depKey(g, state) : json) + '\u0001' + (info.audienceUrl || '');
       if (key !== inst.lastKey || inst.varsDirty) {
         inst.lastKey = key;
         inst.lastJson = json;

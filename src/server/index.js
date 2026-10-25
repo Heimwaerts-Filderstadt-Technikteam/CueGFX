@@ -76,6 +76,7 @@ class CueServer extends EventEmitter {
         this._restoreAutoHide();
         this.hwTimer = setInterval(() => this._pushHardware(), 1000);
         this.chat.init();
+        this._startPublic();
         this.sysFonts.scan().then((n) => {
           console.log(`[CueGFX] ${n} installierte Schriftfamilien gefunden (${this.sysFonts.ms} ms)`);
           this._broadcastControl({ t: 'sysFonts', families: this.sysFonts.names() });
@@ -92,8 +93,91 @@ class CueServer extends EventEmitter {
     clearTimeout(this._chatTimer);
     this.chat.stopAll();
     this.store.saveProjectNow();
+    await this._stopPublic();
     if (this.ws) this.ws.close();
     if (this.http) await new Promise((r) => this.http.close(() => r()));
+  }
+
+  /* ---------- Öffentlicher Zugang nur für die Publikumsseite (z. B. hinter Nginx Proxy Manager) ---------- */
+  async _stopPublic() {
+    if (this.pubWs) { try { this.pubWs.close(); } catch (_) {} this.pubWs = null; }
+    if (this.pubHttp) { const h = this.pubHttp; this.pubHttp = null; await new Promise((r) => { h.close(() => r()); setTimeout(r, 500); }); }
+  }
+  async _startPublic() {
+    await this._stopPublic();
+    const port = Number(this.store.config.audiencePort) || 0;
+    this.pubStatus = port ? 'startet…' : 'aus';
+    if (!port) return;
+    const srv = http.createServer((req, res) => this._handlePublic(req, res).catch((e) => this._error(res, e)));
+    const ws = new WsServer(srv, { path: '/ws', verify: (req, url) => url.searchParams.get('role') === 'audience' });
+    ws.on('connection', (c) => this._wsConnection(c));
+    await new Promise((resolve) => {
+      srv.once('error', (e) => { this.pubStatus = e.code === 'EADDRINUSE' ? `Port ${port} ist belegt` : 'Fehler: ' + e.message; this.pubHttp = null; this.pubWs = null; resolve(); });
+      srv.listen(port, this.host, () => { this.pubHttp = srv; this.pubWs = ws; this.pubStatus = 'läuft'; resolve(); });
+    });
+  }
+
+  async _handlePublic(req, res) {
+    const url = new URL(req.url, 'http://localhost');
+    const p = decodeURIComponent(url.pathname);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    if (p === '/' || p === '/audience' || p === '/audience/' || p === '/index.html') return this._file(res, path.join(PUBLIC, 'audience', 'index.html'));
+    if (p === '/shared/client.js') return this._file(res, path.join(PUBLIC, 'shared', 'client.js'));
+    if (p === '/api/audience.css') return this._audienceCss(res);
+    if (p === '/healthz') { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('ok'); return; }
+    const allow = this._audienceAssets();
+    if (p.startsWith('/media/') && allow.media.has(p.slice(7))) return this._media(req, res, p.slice(7));
+    if (p === '/favicon.ico' && allow.logo) return this._media(req, res, allow.logo);
+    const sf = p.match(/^\/api\/sysfont\/(\d+)/);
+    if (sf && allow.sysfont.has(Number(sf[1]))) return this._api(req, res, url, p.slice(5));
+    throw new HttpError(404, 'Nicht gefunden');
+  }
+
+  /* Schriftfamilie aus einem CSS-Wert wie '"Avenir Next", sans-serif' */
+  _familyOf(v) { const m = String(v || '').match(/^\s*["']?([^"',]+)["']?/); return m ? m[1].trim() : ''; }
+
+  /* Welche Dateien die Publikumsseite laden darf (Logo, verwendete Schriften) */
+  _audienceAssets() {
+    const d = this.project.audienceDesign || {};
+    const media = new Set(), sysfont = new Set();
+    let logo = '';
+    if (d.logo && !/^https?:/.test(d.logo)) { media.add(d.logo); logo = d.logo; }
+    const fams = [d.font, d.headingFont].map((v) => this._familyOf(v)).filter(Boolean);
+    const fonts = this.store.listMedia().filter((m) => m.kind === 'font');
+    for (const fam of fams) {
+      for (const m of fonts) if (m.name.replace(/\.[^.]+$/, '') === fam) media.add(m.name);
+      const sys = this.sysFonts.families.get(fam);
+      if (sys) for (const face of sys.faces) if (!face.collection) sysfont.add(face.file);
+    }
+    return { media, sysfont, logo, fams, fonts };
+  }
+
+  _audienceCss(res) {
+    const d = this.project.audienceDesign || {};
+    const A = this._audienceAssets();
+    const out = [];
+    for (const fam of A.fams) {
+      for (const m of A.fonts) if (m.name.replace(/\.[^.]+$/, '') === fam) out.push(`@font-face{font-family:"${fam.replace(/"/g, '')}";src:url("/media/${encodeURIComponent(m.name)}");font-display:swap;}`);
+      if (this.sysFonts.ready && this.sysFonts.families.has(fam)) out.push(this.sysFonts.css([fam]).replace(/font-display:block/g, 'font-display:swap'));
+    }
+    const light = d.mode === 'light';
+    const v = {
+      '--bg': d.bg || (light ? '#f4f5f7' : '#0f1115'),
+      '--card': d.card || (light ? '#ffffff' : '#181b22'),
+      '--fg': d.text || (light ? '#15181d' : '#eef1f5'),
+      '--acc': d.primary || '#e11d48',
+      '--acc2': d.accent || '#f59e0b',
+      '--r': (Number(d.radius) >= 0 ? Number(d.radius) : 14) + 'px'
+    };
+    out.push(':root{' + Object.entries(v).map(([k, x]) => `${k}:${x}`).join(';') +
+      ';--card2:color-mix(in srgb,var(--card) 88%,var(--fg) 12%);--line:color-mix(in srgb,var(--card) 80%,var(--fg) 20%);' +
+      '--fg2:color-mix(in srgb,var(--fg) 70%,var(--bg) 30%);--fg3:color-mix(in srgb,var(--fg) 50%,var(--bg) 50%);' + (light ? 'color-scheme:light;' : 'color-scheme:dark;') + '}');
+    if (d.font) out.push(`:is(body,button,input,textarea,.tabs button,.seg button,button.primary,.opt,.like){font-family:${d.font};}`);
+    if (d.headingFont) out.push(`h1,h2,.poll h2{font-family:${d.headingFont};}`);
+    if (d.customCss) out.push('/* Eigenes CSS */\n' + String(d.customCss).replace(/<\/style/gi, ''));
+    res.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'no-cache' });
+    res.end(out.join('\n'));
   }
 
   lanUrls() {
@@ -168,7 +252,16 @@ class CueServer extends EventEmitter {
 
   _statePayload() {
     if (!this._lanCache || Date.now() - this._lanCache.t > 10000) this._lanCache = { t: Date.now(), urls: this.lanUrls() };
-    return { t: 'state', serverTime: Date.now(), project: this.project, vars: this.variables(), info: { version: VERSION, build: BUILD, port: this.port, lan: this._lanCache.urls } };
+    return { t: 'state', serverTime: Date.now(), project: this.project, vars: this.variables(), info: { version: VERSION, build: BUILD, port: this.port, lan: this._lanCache.urls, audienceUrl: this._audienceUrl(), audiencePort: Number(this.store.config.audiencePort) || 0, audiencePublicUrl: this.store.config.audiencePublicUrl || '', audienceStatus: this.pubStatus || 'aus' } };
+  }
+
+  /* Adresse für QR-Codes & {{audience_url}}: eigene Domain, sonst öffentlicher Port im LAN, sonst Steuerungs-Port */
+  _audienceUrl() {
+    const c = this.store.config;
+    if (c.audiencePublicUrl) return c.audiencePublicUrl;
+    const lan = (this._lanCache && this._lanCache.urls[0]) || `http://127.0.0.1:${this.port}`;
+    if (c.audiencePort && this.pubHttp) return lan.replace(/:\d+$/, ':' + c.audiencePort) + '/';
+    return lan + '/audience';
   }
 
   _sendAudience(c, publicJson) {
@@ -185,7 +278,7 @@ class CueServer extends EventEmitter {
       if (!this._audDirty) return;
       this._audDirty = false;
       const pub = JSON.stringify(this.audience.publicState());
-      for (const c of this.ws.clients) if (c.role === 'audience') this._sendAudience(c, pub);
+      for (const w of [this.ws, this.pubWs]) if (w) for (const c of w.clients) if (c.role === 'audience') this._sendAudience(c, pub);
     }, 200);
   }
 
@@ -508,6 +601,25 @@ class CueServer extends EventEmitter {
       }
 
       /* Chat */
+      case 'audience.access': {
+        const c = this.store.config;
+        if (a.publicUrl !== undefined) {
+          let u = String(a.publicUrl || '').trim().replace(/\/+$/, '');
+          if (u && !/^https?:\/\//i.test(u)) u = 'https://' + u;
+          c.audiencePublicUrl = u.slice(0, 300);
+        }
+        let restart = false;
+        if (a.port !== undefined) {
+          const n = Number(a.port) || 0;
+          if (n !== 0 && (n < 1024 || n > 65535)) throw new HttpError(400, 'Port muss zwischen 1024 und 65535 liegen (0 = aus)');
+          if (n === this.port) throw new HttpError(400, 'Der öffentliche Port muss sich vom Steuerungs-Port unterscheiden');
+          if (n !== c.audiencePort) { c.audiencePort = n; restart = true; }
+        }
+        this.store.saveConfig();
+        if (restart) this._startPublic().then(() => this.changed());
+        this._lanCache = null;
+        return done();
+      }
       case 'chat.connect': return { sourceId: this.chat.legacyConnect(a.channel) };
       case 'chat.disconnect': return this.chat.disableAll();
       case 'chat.source.add': return { id: this.chat.add(a.preset || a.type, a.values, { enable: !!a.enabled }) };
@@ -526,7 +638,7 @@ class CueServer extends EventEmitter {
       }
 
       default: {
-        if (cmd.startsWith('qa.') || cmd.startsWith('poll.')) {
+        if (cmd.startsWith('qa.') || cmd.startsWith('poll.') || cmd === 'audience.design') {
           let r;
           try { r = this.audience.exec(cmd, a); } catch (e) { throw new HttpError(e.code || 400, e.message); }
           if (r !== undefined) { this._audDirty = true; return cmd === 'qa.test' ? r : done(r); }
@@ -673,7 +785,7 @@ class CueServer extends EventEmitter {
   }
 
   async _api(req, res, url, route) {
-    const open = route === 'qr.svg' || route === 'fonts.css' || route === 'info' || route === 'theme.css' || route.startsWith('sysfont/');
+    const open = route === 'qr.svg' || route === 'fonts.css' || route === 'info' || route === 'theme.css' || route === 'audience.css' || route.startsWith('sysfont/');
     if (!open && !this._pinOk(req, url)) throw new HttpError(401, 'PIN erforderlich');
     const parts = route.split('/').filter(Boolean);
     const m = req.method;
@@ -692,6 +804,7 @@ class CueServer extends EventEmitter {
       res.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'no-cache' });
       res.end(css + (sys ? '\n' + sys : '')); return;
     }
+    if (route === 'audience.css') return this._audienceCss(res);
     if (route === 'system-fonts') return this._json(res, { ready: this.sysFonts.ready, families: this.sysFonts.list() });
     if (parts[0] === 'sysfont' && parts[1]) {
       // Nur Dateien aus der Scan-Liste ausliefern (Index), nie beliebige Pfade
