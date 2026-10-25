@@ -159,6 +159,7 @@
       h('div', { class: 'drag', title: 'Ziehen zum Sortieren', onmousedown: () => { row.draggable = true; } }, '⋮⋮'),
       h('div', { class: 'ico' }, t.icon),
       h('div', { class: 'nm' }, h('b', null, g.name), h('small', null, t.label, h('span', { class: 'outdots' }, outNames))),
+      h('div', { class: 'gcd', 'data-cd': g.id }),
       h('div', { class: 'acts' },
         h('button', { class: 'pv' + (g.preview ? ' on' : ''), title: 'Vorschau', onclick: (e) => { e.stopPropagation(); run('graphic.preview', { id: g.id }); } }, 'PVW'),
         h('button', { class: 'lv' + (g.live ? ' on' : ''), title: 'Live ein/aus', onclick: (e) => { e.stopPropagation(); run('graphic.toggle', { id: g.id }); } }, 'LIVE')),
@@ -182,6 +183,7 @@
       list.appendChild(row);
     }
     tickTimers();
+    updateMonitorOverlays();
   }
 
   function renderLiveList() {
@@ -1272,20 +1274,19 @@
 
   /* ---------- VU-Meter & Restzeit auf den Monitoren (nur Anzeige, wird nicht ausgegeben) ---------- */
   const MON = { pvw: { media: [], at: 0 }, pgm: { media: [], at: 0 } };
-  const VU_MODES = [['over', 'VU: über Bild'], ['left', 'VU: links'], ['off', 'VU: aus']];
-  let vuMode = (() => { try { return localStorage.getItem('cue.vu') || 'over'; } catch (_) { return 'over'; } })();
-  const applyVuMode = () => {
-    $('monitors').dataset.vu = vuMode;
-    $('btn-vu-mode').textContent = (VU_MODES.find((m) => m[0] === vuMode) || VU_MODES[0])[1];
-    fitScreens();
-  };
-  $('btn-vu-mode').addEventListener('click', () => {
-    const i = VU_MODES.findIndex((m) => m[0] === vuMode);
-    vuMode = VU_MODES[(i + 1) % VU_MODES.length][0];
-    try { localStorage.setItem('cue.vu', vuMode); } catch (_) {}
-    applyVuMode();
-  });
-  applyVuMode();
+  // VU-Meter links neben den Monitoren, je Monitor per Schalter ein/aus (gemerkt)
+  const vuOn = { pvw: true, pgm: true };
+  for (const k of ['pvw', 'pgm']) {
+    try { vuOn[k] = localStorage.getItem('cue.vu.' + k) !== '0'; } catch (_) {}
+    const cb = $('vu-on-' + k);
+    cb.checked = vuOn[k];
+    $('vu-' + k).classList.toggle('off', !vuOn[k]);
+    cb.addEventListener('change', () => {
+      vuOn[k] = cb.checked;
+      try { localStorage.setItem('cue.vu.' + k, cb.checked ? '1' : '0'); } catch (_) {}
+      $('vu-' + k).classList.toggle('off', !cb.checked);
+    });
+  }
   window.addEventListener('message', (e) => {
     if (e.origin !== location.origin || !e.data || e.data.cueMon !== 'state') return;
     const key = e.source === $('if-pgm').contentWindow ? 'pgm' : e.source === $('if-pvw').contentWindow ? 'pvw' : null;
@@ -1317,21 +1318,28 @@
     });
   }
   function updateMonitorOverlays() {
-    for (const key of ['pvw', 'pgm']) {
-      const ov = $('ov-' + key); if (!ov) continue;
-      const fresh = Date.now() - MON[key].at < 1000;
-      const list = fresh ? MON[key].media.filter((x) => x.type === 'video' || x.type === 'audio') : [];
-      const html = list.map((x) => {
-        const left = remaining(x);
-        const warn = !x.loop && x.end > 0 && left <= 10 ? (left <= 5 ? ' crit' : ' warn') : '';
-        const t = x.end > 0 ? (x.loop ? '↻ ' : '−') + fmtLeft(left) : '…';
-        return `<div class="cd-box${warn}"><span class="cd-name">${String(x.name).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))}${x.paused ? ' · Pause' : ''}${x.muted ? ' · stumm' : ''}</span><span class="cd-time">${t}</span><i class="cd-bar" style="width:${x.end > 0 ? Math.min(100, ((x.cur - x.start) / Math.max(0.1, x.end - x.start)) * 100) : 0}%"></i></div>`;
-      }).join('');
-      if (ov.dataset.html !== html) { ov.dataset.html = html; ov.innerHTML = html; }
-      if (vuMode !== 'off') drawVu(key);
-    }
+    for (const key of ['pvw', 'pgm']) if (vuOn[key]) drawVu(key);
+    const fresh = (k) => (Date.now() - MON[k].at < 1000 ? MON[k].media : []);
+    const pg = fresh('pgm'), pv = fresh('pvw');
+    // Restzeit in der Grafikliste: Sendung (rot) hat Vorrang vor Vorschau (grün)
+    document.querySelectorAll('#glist .gcd[data-cd]').forEach((el) => {
+      const id = el.dataset.cd;
+      const x = pg.find((m) => m.id === id), y = !x && pv.find((m) => m.id === id);
+      const m = x || y;
+      let t = '', cls = 'gcd';
+      if (m) {
+        const left = remaining(m);
+        t = m.end > 0 ? (m.loop ? '↻ ' : '−') + fmtLeft(left) : '…';
+        if (m.paused) t += ' ❚❚';
+        cls += x ? ' pgm' : ' pvw';
+        if (x && !m.loop && m.end > 0) cls += left <= 5 ? ' crit' : left <= 10 ? ' warn' : '';
+        el.title = `${x ? 'Sendung' : 'Vorschau'}: noch ${fmtLeft(left)} von ${fmtLeft(m.end - m.start)}${m.muted ? ' · stumm' : ''}`;
+        el.style.setProperty('--p', m.end > 0 ? Math.min(100, ((m.cur - m.start) / Math.max(0.1, m.end - m.start)) * 100).toFixed(1) + '%' : '0%');
+      }
+      if (el.textContent !== t) el.textContent = t;
+      if (el.className !== cls) el.className = cls;
+    });
     // Restzeit an den „Auf Sendung“-Chips
-    const pg = Date.now() - MON.pgm.at < 1000 ? MON.pgm.media : [];
     document.querySelectorAll('#live-list .chip[data-gid] .cd').forEach((b) => {
       const x = pg.find((m) => m.id === b.parentNode.dataset.gid);
       const t = x && x.end > 0 ? (x.loop ? '↻ ' : '−') + fmtLeft(remaining(x)) : '';

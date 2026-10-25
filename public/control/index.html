@@ -39,12 +39,12 @@
   <section class="pane" id="editor-pane"><div class="pane-body" id="editor"></div></section>
   <section class="pane" id="monitors">
     <div class="mon">
-      <div class="mon-h"><span class="tag pvw">VORSCHAU</span><button class="btn xs ghost" id="btn-vu-mode" title="VU-Meter: über dem Bild / links daneben / aus" style="margin-left:auto">VU: über Bild</button></div>
-      <div class="mon-row"><div class="vu" id="vu-pvw"></div><div class="screen pvw" id="scr-pvw"><iframe id="if-pvw" src="/output/preview?monitor=1" title="Vorschau"></iframe><div class="mon-ov" id="ov-pvw"></div></div></div>
+      <div class="mon-h"><span class="tag pvw">VORSCHAU</span></div>
+      <div class="mon-row"><div class="vu-col"><div class="vu" id="vu-pvw"></div><label class="switch vu-sw" title="VU-Meter ein/aus"><input type="checkbox" id="vu-on-pvw" checked></label></div><div class="screen pvw" id="scr-pvw"><iframe id="if-pvw" src="/output/preview?monitor=1" title="Vorschau"></iframe></div></div>
     </div>
     <div class="mon">
       <div class="mon-h"><span class="tag pgm">SENDUNG</span><select id="pgm-out"></select></div>
-      <div class="mon-row"><div class="vu" id="vu-pgm"></div><div class="screen pgm" id="scr-pgm"><iframe id="if-pgm" src="/output/1?audio=0&amp;monitor=1" title="Sendung"></iframe><div class="mon-ov" id="ov-pgm"></div></div></div>
+      <div class="mon-row"><div class="vu-col"><div class="vu" id="vu-pgm"></div><label class="switch vu-sw" title="VU-Meter ein/aus"><input type="checkbox" id="vu-on-pgm" checked></label></div><div class="screen pgm" id="scr-pgm"><iframe id="if-pgm" src="/output/1?audio=0&amp;monitor=1" title="Sendung"></iframe></div></div>
       <div class="mon-actions">
         <button class="btn sm" id="btn-open-out">Ausgang öffnen ↗</button>
         <button class="btn sm" id="btn-copy-url">URL kopieren</button>

@@ -283,27 +283,28 @@ a.btn { text-decoration: none; color: inherit; display: inline-block; }
 
 .font-prev { margin-top: 12px; padding: 12px 14px; border-radius: 8px; background: var(--bg2); border: 1px solid var(--line); }
 
-/* Monitore: VU-Meter & Restzeit (nur in der Steuerung) */
+/* Monitore: VU-Meter links (nur in der Steuerung) */
 .mon-row { display: flex; gap: 6px; align-items: stretch; }
 .mon-row .screen { flex: 1; min-width: 0; }
-.vu { position: relative; display: flex; gap: 3px; padding: 6px 4px; width: 26px; flex: none; border-radius: 6px; background: var(--bg2); border: 1px solid var(--line); }
+.vu-col { flex: none; width: 36px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.vu { position: relative; flex: 1; width: 26px; display: flex; gap: 3px; padding: 6px 4px; border-radius: 6px; background: var(--bg2); border: 1px solid var(--line); }
+.vu.off { visibility: hidden; }
+.vu-sw input { width: 30px; height: 16px; } .vu-sw input::after { width: 10px; height: 10px; } .vu-sw input:checked::after { left: 16px; }
 .vu-ch { position: relative; flex: 1; border-radius: 2px; overflow: hidden; background: linear-gradient(to top, rgba(40,200,110,.18) 0 70%, rgba(250,200,40,.18) 70% 90%, rgba(240,50,70,.2) 90%); }
 .vu-fill { position: absolute; inset: 0; background: linear-gradient(to top, #29c76f 0, #29c76f 70%, #f4c430 70%, #f4c430 90%, #f0384b 90%); clip-path: inset(100% 0 0 0); transition: clip-path .06s linear; }
 .vu-pk { position: absolute; left: 0; right: 0; height: 2px; bottom: 0; background: #fff; opacity: .85; }
 .vu-ch.clip .vu-pk { background: #ff3b52; height: 3px; }
 .vu-scale { display: none; }
-.vu.idle { opacity: .45; }
-#monitors[data-vu="off"] .vu { display: none; }
-#monitors[data-vu="over"] .mon-row { position: relative; }
-#monitors[data-vu="over"] .vu { position: absolute; z-index: 3; left: 6px; top: 6px; bottom: 6px; width: 22px; background: rgba(0,0,0,.35); border-color: rgba(255,255,255,.12); backdrop-filter: blur(2px); pointer-events: none; }
-#monitors[data-vu="over"] .vu.idle { opacity: 0; }
-.mon-ov { position: absolute; right: 8px; bottom: 8px; z-index: 3; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; pointer-events: none; }
-.cd-box { position: relative; overflow: hidden; display: flex; align-items: baseline; gap: 8px; background: rgba(0,0,0,.62); border: 1px solid rgba(255,255,255,.15); border-radius: 6px; padding: 3px 8px 5px; color: #fff; backdrop-filter: blur(2px); }
-.cd-name { font-size: 11px; opacity: .8; max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cd-time { font: 700 18px/1.1 ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
-.cd-bar { position: absolute; left: 0; bottom: 0; height: 3px; background: #fff; opacity: .7; }
-.cd-box.warn { border-color: #f4c430; } .cd-box.warn .cd-time { color: #ffd65a; } .cd-box.warn .cd-bar { background: #f4c430; }
-.cd-box.crit { border-color: #f0384b; background: rgba(120,0,15,.7); animation: cdblink 1s steps(2) infinite; } .cd-box.crit .cd-bar { background: #ff3b52; }
+.vu.idle .vu-ch { opacity: .5; }
+/* Restzeit in der Grafikliste */
+.gitem { grid-template-columns: 18px 28px 1fr auto auto; }
+.gcd { position: relative; font: 700 12px ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; border-radius: 5px; overflow: hidden; }
+.gcd:not(:empty) { padding: 3px 7px 4px; border: 1px solid var(--line2); background: var(--bg3); }
+.gcd::after { content: ''; position: absolute; left: 0; bottom: 0; height: 2px; width: var(--p, 0%); background: currentColor; opacity: .7; }
+.gcd:empty::after { display: none; }
+.gcd.pgm { color: #ff9aa6; border-color: var(--live-dim); } .gcd.pvw { color: #8ff0b4; border-color: var(--pvw-dim); }
+.gcd.warn { color: #ffd65a; border-color: #f4c430; }
+.gcd.crit { color: #fff; background: #8a1020; border-color: #f0384b; animation: cdblink 1s steps(2) infinite; }
 @keyframes cdblink { 50% { border-color: transparent; } }
 .chip .cd { font: 700 11px ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; margin-left: 2px; }
 .chip .cd.warn { color: #ffd65a; }
