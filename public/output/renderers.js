@@ -233,6 +233,7 @@
         el,
         update(g, c) {
           ctxRef = c;
+          if (c.sink && !c.monitor && !m._sinkReg) { m._sinkReg = true; c.sink.add(m); }
           const d = g.data;
           const src = c.media(d.src);
           const restart = !cur || g.shownAt !== shownAt || m.getAttribute('src') !== src;
@@ -253,7 +254,7 @@
           if (m.getAttribute('src') !== src) m.setAttribute('src', src);
           if (src) startPlayback(c);
         },
-        destroy() { clearInterval(fadeTimer); if (cur && ctxRef && ctxRef.monitor) ctxRef.monitor.detach(cur.id); m.pause(); m.removeAttribute('src'); m.load(); }
+        destroy() { clearInterval(fadeTimer); if (ctxRef && ctxRef.sink) ctxRef.sink.remove(m); if (cur && ctxRef && ctxRef.monitor) ctxRef.monitor.detach(cur.id); m.pause(); m.removeAttribute('src'); m.load(); }
       };
     };
   }

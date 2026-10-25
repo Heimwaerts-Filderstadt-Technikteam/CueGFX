@@ -143,6 +143,10 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
     ctl.w.close(); aud.w.close();
   } else console.log('  (WebSocket-Test übersprungen – Node 22 oder neuer nötig)');
 
+  ok((await get('/api/cmd', { method: 'POST' })).status === 400, '/api/cmd ohne Befehl → 400 statt Absturz');
+  server.exec('audio.out', { output: '2', deviceId: 'abc', label: 'USB Audio' });
+  ok(server.audioOut().output === '2' && server.audioOut().label === 'USB Audio' && server._statePayload().info.audioOut.deviceId === 'abc', 'Ton-Ausgabe: Ausgang und Gerät gespeichert');
+
   // Öffentlicher Port nur für die Publikumsseite
   server.store.config.audiencePort = 47000 + Math.floor(Math.random() * 2000);
   await server._startPublic();

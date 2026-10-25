@@ -252,8 +252,10 @@ class CueServer extends EventEmitter {
 
   _statePayload() {
     if (!this._lanCache || Date.now() - this._lanCache.t > 10000) this._lanCache = { t: Date.now(), urls: this.lanUrls() };
-    return { t: 'state', serverTime: Date.now(), project: this.project, vars: this.variables(), info: { version: VERSION, build: BUILD, port: this.port, lan: this._lanCache.urls, audienceUrl: this._audienceUrl(), audiencePort: Number(this.store.config.audiencePort) || 0, audiencePublicUrl: this.store.config.audiencePublicUrl || '', audienceStatus: this.pubStatus || 'aus' } };
+    return { t: 'state', serverTime: Date.now(), project: this.project, vars: this.variables(), info: { version: VERSION, build: BUILD, port: this.port, lan: this._lanCache.urls, audienceUrl: this._audienceUrl(), audiencePort: Number(this.store.config.audiencePort) || 0, audiencePublicUrl: this.store.config.audiencePublicUrl || '', audienceStatus: this.pubStatus || 'aus', audioOut: this.audioOut() } };
   }
+
+  audioOut() { return Object.assign({ enabled: true, output: '1', deviceId: '', label: '' }, this.store.config.audioOut || {}, { app: !!this.hooks.desktop }); }
 
   /* Adresse für QR-Codes & {{audience_url}}: eigene Domain, sonst öffentlicher Port im LAN, sonst Steuerungs-Port */
   _audienceUrl() {
@@ -601,6 +603,18 @@ class CueServer extends EventEmitter {
       }
 
       /* Chat */
+      case 'audio.out': {
+        // Ton-Ausgabe der Desktop-App: welcher Ausgang, welches Audiogerät ('' = Systemeinstellung)
+        const c = this.store.config;
+        const cur = Object.assign({ enabled: true, output: '1', deviceId: '', label: '' }, c.audioOut || {});
+        if (a.enabled !== undefined) cur.enabled = !!a.enabled;
+        if (a.output !== undefined) cur.output = String(a.output);
+        if (a.deviceId !== undefined) { cur.deviceId = String(a.deviceId || '').slice(0, 200); cur.label = String(a.label || '').slice(0, 200); }
+        c.audioOut = cur;
+        this.store.saveConfig();
+        this.emit('audioOut', cur);
+        return done();
+      }
       case 'audience.access': {
         const c = this.store.config;
         if (a.publicUrl !== undefined) {
@@ -819,6 +833,7 @@ class CueServer extends EventEmitter {
     if (route === 'state') return this._json(res, { project: this.project, vars: this.variables(), serverTime: Date.now() });
     if (route === 'cmd' && m === 'POST') {
       const a = await this._args(req, url);
+      if (!a.cmd || typeof a.cmd !== 'string') throw new HttpError(400, 'Befehl fehlt: {"cmd": "…", "args": {…}}');
       return this._json(res, { ok: true, result: this.exec(a.cmd, a.args || {}) });
     }
 

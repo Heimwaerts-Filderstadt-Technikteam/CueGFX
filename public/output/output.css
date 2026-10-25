@@ -365,3 +365,6 @@ body.guides #stage::after {
 
 .soc .av .avi { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 .soc .av .pf { z-index: 1; }
+
+/* Unsichtbarer Ton-Player der Desktop-App: nichts zeichnen */
+body.audio-only #stage { visibility: hidden; }

@@ -1175,6 +1175,46 @@
   }
 
   /* ---------- Einstellungen ---------- */
+  /* ---------- Ton-Ausgabe der Desktop-App ---------- */
+  let audioDevices = null;
+  async function loadAudioDevices() {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      audioDevices = all.filter((d) => d.kind === 'audiooutput' && d.deviceId !== 'default' && d.deviceId !== 'communications')
+        .map((d, i) => ({ id: d.deviceId, label: d.label || `Audiogerät ${i + 1}` }));
+    } catch (_) { audioDevices = []; }
+    if (S.tab === 'settings') renderTab();
+  }
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', loadAudioDevices);
+  function audioCard() {
+    const ao = (S.info && S.info.audioOut) || { enabled: true, output: '1', deviceId: '', label: '' };
+    const card = h('div', { class: 'card' }, h('h3', null, 'Ton-Ausgabe'));
+    if (!window.CUE_DESKTOP) {
+      card.appendChild(h('p', { class: 'hint', style: { margin: 0 } }, 'Nur in der Desktop-App verfügbar. Im Browser kommt der Ton aus geöffneten Ausgabe-Fenstern bzw. OBS/vMix.'));
+      return card;
+    }
+    if (audioDevices === null) { loadAudioDevices(); }
+    const dev = h('select', { class: 'inp', style: { flex: '1', minWidth: '0' } }, h('option', { value: '' }, 'Systemeinstellung (Standard-Ausgabegerät)'),
+      (audioDevices || []).map((d) => h('option', { value: d.id }, d.label)));
+    // Gespeichertes Gerät nicht (mehr) vorhanden → trotzdem anzeigen
+    if (ao.deviceId && !(audioDevices || []).some((d) => d.id === ao.deviceId)) {
+      const byLabel = (audioDevices || []).find((d) => d.label === ao.label);
+      if (byLabel) dev.value = byLabel.id; else { dev.appendChild(h('option', { value: ao.deviceId }, `${ao.label || 'Gespeichertes Gerät'} (nicht angeschlossen)`)); dev.value = ao.deviceId; }
+    } else dev.value = ao.deviceId || '';
+    dev.addEventListener('change', () => { const d = (audioDevices || []).find((x) => x.id === dev.value); run('audio.out', { deviceId: dev.value, label: d ? d.label : '' }); });
+    const out = h('select', { class: 'inp' }, outputs().map((o) => h('option', { value: o.id }, `${o.id} · ${o.name}`)));
+    out.value = ao.output || '1';
+    out.addEventListener('change', () => run('audio.out', { output: out.value }));
+    const on = h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: !!ao.enabled, onchange: (e) => run('audio.out', { enabled: e.target.checked }) }), 'Ton über die App ausgeben');
+    card.append(
+      h('div', { class: 'row', style: { marginBottom: '10px' } }, on),
+      h('div', { class: 'grid2' },
+        h('div', { class: 'field' }, h('label', null, 'Ton von Ausgang'), out),
+        h('div', { class: 'field' }, h('label', null, 'Audiogerät'), h('div', { class: 'row', style: { flexWrap: 'nowrap' } }, dev, h('button', { class: 'btn sm', title: 'Geräteliste neu einlesen', onclick: loadAudioDevices }, '↻')))),
+      h('p', { class: 'hint' }, 'Spielt den Ton von Video- und Audio-Grafiken des gewählten Ausgangs auf diesem Rechner ab – unabhängig davon, ob ein Ausgabefenster offen ist. Das gewählte Gerät gilt auch für geöffnete Ausgabe-, Bildschirm-, DeckLink- und NDI-Fenster der App. „Systemeinstellung“ folgt dem in macOS/Windows eingestellten Ausgabegerät. Damit der Ton nicht doppelt kommt: In Ausgänge den Schalter „Ton“ nur dort aktivieren, wo ihr ihn wirklich braucht.'));
+    return card;
+  }
+
   function viewSettings(ed) {
     const p = S.project;
     const lan = (S.info && S.info.lan) || [];
@@ -1191,6 +1231,7 @@
     take.value = p.settings.takeMode || 'add';
     ed.appendChild(h('div', { class: 'card' }, h('h3', null, 'Bedienung'), h('div', { class: 'field' }, h('label', null, 'Verhalten von TAKE'), take),
       h('p', { class: 'hint' }, 'Tastenkürzel: ', h('kbd', null, 'Strg/⌘+Enter'), ' Take · ', h('kbd', null, 'Strg/⌘+⌫'), ' alles ausblenden · ', h('kbd', null, 'Strg/⌘+D'), ' Grafik duplizieren · ', h('kbd', null, 'Strg/⌘+K'), ' Grafik suchen')));
+    ed.appendChild(audioCard());
     const pin = h('input', { type: 'password', class: 'inp', style: { width: '200px' }, placeholder: 'leer = kein Schutz' });
     ed.appendChild(h('div', { class: 'card' }, h('h3', null, 'Netzwerk & Zugriff'),
       ...lan.map((u) => h('div', { class: 'row', style: { marginBottom: '6px' } }, h('div', { class: 'copy' }, u + '/control'), h('button', { class: 'btn xs', onclick: () => copyText(u + '/control') }, 'Kopieren'))),

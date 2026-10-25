@@ -1,6 +1,6 @@
 'use strict';
 /* CueGFX – Desktop-App (macOS, Windows, Linux) */
-const { app, BrowserWindow, Menu, shell, screen, dialog, nativeTheme } = require('electron');
+const { app, BrowserWindow, Menu, shell, screen, dialog, nativeTheme, session } = require('electron');
 const path = require('path');
 const { CueServer } = require('../server/index');
 const { DeckLinkManager } = require('../decklink/manager');
@@ -15,7 +15,7 @@ app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 
-let server = null, controlWin = null, decklink = null, displays = null, ndi = null;
+let server = null, controlWin = null, decklink = null, displays = null, ndi = null, audioWin = null, audioKey = '';
 const extraWindows = new Set();
 const log = (...a) => console.log('[CueGFX]', ...a);
 const buildLabel = () => { const b = require('../../package.json').buildInfo; return b ? `Build #${b.build} · ${b.commit} · ${b.date}\n\n` : 'Entwicklungsversion (lokal gebaut)\n\n'; };
@@ -43,6 +43,23 @@ async function startServer() {
     }
   }
   log(`Server läuft auf ${baseUrl()}`);
+}
+
+/* ---------- Ton-Ausgabe: unsichtbares Fenster spielt den Ton eines Ausgangs auf dem gewählten Gerät ---------- */
+function updateAudioWindow(cfg) {
+  cfg = cfg || (server && server.audioOut()) || {};
+  const key = cfg.enabled ? `${cfg.output}` : '';
+  if (key === audioKey && (audioWin || !key)) return;
+  audioKey = key;
+  if (audioWin) { try { audioWin.destroy(); } catch (_) {} audioWin = null; }
+  if (!key) { log('Ton-Ausgabe: aus'); return; }
+  audioWin = new BrowserWindow({
+    show: false, width: 640, height: 360, skipTaskbar: true, title: 'CueGFX Ton',
+    webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' }
+  });
+  audioWin.loadURL(`${baseUrl()}/output/${encodeURIComponent(cfg.output)}?audio=1&audioOnly=1`);
+  audioWin.on('closed', () => { audioWin = null; audioKey = ''; });
+  log(`Ton-Ausgabe: Ausgang ${cfg.output}${cfg.label ? ' → ' + cfg.label : ' → Systemeinstellung'}`);
 }
 
 function createControlWindow() {
@@ -139,6 +156,12 @@ app.whenReady().then(async () => {
   if (ndi.available) {
     try { ndi.configure(server.store.config.ndiOutputs || []); } catch (e) { log('NDI:', e.message); }
   } else log('NDI:', ndi.loadError);
+  // Audiogeräte auflisten und auswählen dürfen (nur eigene Seiten)
+  const own = (wc) => { try { return wc && wc.getURL().startsWith(baseUrl()); } catch (_) { return false; } };
+  session.defaultSession.setPermissionCheckHandler((wc, perm) => (['media', 'speaker-selection', 'audioCapture'].includes(perm) ? !wc || own(wc) : true));
+  session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(['media', 'speaker-selection', 'audioCapture', 'fullscreen'].includes(perm) && own(wc)));
+  server.on('audioOut', (cfg) => updateAudioWindow(cfg));
+  updateAudioWindow();
   buildMenu();
   server.on('state', () => {
     // Menü aktualisieren, wenn sich Ausgänge ändern
@@ -164,6 +187,7 @@ app.on('before-quit', async (e) => {
   try { if (decklink) decklink.stopAll(); } catch (_) {}
   try { if (ndi) ndi.stopAll(); } catch (_) {}
   try { if (displays) displays.closeAll(); } catch (_) {}
+  try { if (audioWin) audioWin.destroy(); } catch (_) {}
   try { if (server) await server.stop(); } catch (_) {}
   app.exit(0);
 });

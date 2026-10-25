@@ -18,6 +18,35 @@
 
   if (params.get('guides') === '1') document.body.classList.add('guides');
 
+  /* ---------- Audiogerät (Ton-Ausgabe der Desktop-App) ---------- */
+  if (params.get('audioOnly') === '1') document.body.classList.add('audio-only');
+  const Sink = (function () {
+    let wanted = null, resolved = '', label = '';
+    const media = new Set();
+    async function resolve(cfg) {
+      const key = cfg ? cfg.deviceId + '|' + cfg.label : '';
+      if (key === wanted) return;
+      wanted = key;
+      resolved = ''; label = cfg ? cfg.label : '';
+      if (cfg && (cfg.deviceId || cfg.label) && navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+        try {
+          const outs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput');
+          const hit = outs.find((d) => d.deviceId === cfg.deviceId) || outs.find((d) => cfg.label && d.label === cfg.label);
+          resolved = hit ? hit.deviceId : '';
+          if (!hit) console.warn('[CueGFX] Audiogerät nicht gefunden, nutze Systemeinstellung:', cfg.label);
+        } catch (_) { resolved = ''; }
+      }
+      for (const m of media) apply(m);
+    }
+    function apply(m) {
+      if (typeof m.setSinkId !== 'function') return;
+      if ((m.sinkId || '') === resolved) return;
+      m.setSinkId(resolved).catch((e) => console.warn('[CueGFX] Audiogerät:', e.message));
+    }
+    return { resolve, add(m) { media.add(m); apply(m); }, remove(m) { media.delete(m); } };
+  })();
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', () => { const w = Sink._last; Sink.resolve(null); Sink.resolve(w); });
+
   /* ---------- Monitor-Modus (nur Vorschau-Fenster in der Steuerung, ?monitor=1) ----------
      Misst Pegel und Restzeit laufender Video-/Audio-Grafiken und meldet sie an die Steuerung.
      Der Ton wird dabei nur analysiert, nicht hörbar ausgegeben. */
@@ -181,6 +210,7 @@
       publicBase,
       audienceUrl,
       monitor: Mon,
+      sink: Sink,
       setFull: (on) => { inst.wrap.classList.toggle('full', on || !!inst.typeDef.fullscreen); },
       ended: (g) => { if (!isPreview) client.cmd('media.ended', { id: g.id, shownAt: g.shownAt }).catch(() => {}); }
     };
@@ -304,6 +334,8 @@
     const varsJson = JSON.stringify(m.vars);
     const varsChanged = varsJson !== JSON.stringify(vars);
     state = m.project; theme = state.theme || {}; vars = m.vars || {}; info = m.info || info;
+    // Gerätewahl nur in Fenstern der Desktop-App (nicht in OBS/vMix/Browsern anderer Rechner)
+    if (!Mon && /Electron/.test(navigator.userAgent)) { Sink._last = info.audioOut || null; Sink.resolve(Sink._last); }
     sync();
     if (varsChanged) refreshVars(false);
   });
