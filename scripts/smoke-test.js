@@ -143,6 +143,13 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
     ctl.w.close(); aud.w.close();
   } else console.log('  (WebSocket-Test übersprungen – Node 22 oder neuer nötig)');
 
+  server.exec('theme.update', { theme: { primary: '#009982' } });
+  const tid = server.exec('theme.template.save', { name: 'Test-Vorlage' }).id || (server.store.config.themeTemplates[0] || {}).id;
+  server.exec('theme.preset', { preset: 'neon' });
+  server.exec('theme.template.apply', { id: tid });
+  ok(server.project.theme.primary === '#009982' && server._statePayload().info.themeTemplates.length === 1, 'Eigene Theme-Vorlage speichern und anwenden');
+  server.exec('theme.template.delete', { id: tid });
+  ok(!server.store.config.themeTemplates.length, 'Theme-Vorlage löschen');
   ok((await get('/api/cmd', { method: 'POST' })).status === 400, '/api/cmd ohne Befehl → 400 statt Absturz');
   server.exec('audio.out', { output: '2', deviceId: 'abc', label: 'USB Audio' });
   ok(server.audioOut().output === '2' && server.audioOut().label === 'USB Audio' && server._statePayload().info.audioOut.deviceId === 'abc', 'Ton-Ausgabe: Ausgang und Gerät gespeichert');

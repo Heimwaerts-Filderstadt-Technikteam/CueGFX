@@ -328,7 +328,11 @@ class CueServer extends EventEmitter {
 
   _statePayload() {
     if (!this._lanCache || Date.now() - this._lanCache.t > 10000) this._lanCache = { t: Date.now(), urls: this.lanUrls() };
-    return { t: 'state', serverTime: Date.now(), project: this.project, vars: this.variables(), info: { version: VERSION, build: BUILD, port: this.port, lan: this._lanCache.urls, audienceUrl: this._audienceUrl(), audiencePort: Number(this.store.config.audiencePort) || 0, audiencePublicUrl: this.store.config.audiencePublicUrl || '', audienceStatus: this.pubStatus || 'aus', audioOut: this.audioOut() } };
+    return { t: 'state', serverTime: Date.now(), project: this.project, vars: this.variables(), info: { version: VERSION, build: BUILD, port: this.port, lan: this._lanCache.urls, audienceUrl: this._audienceUrl(), audiencePort: Number(this.store.config.audiencePort) || 0, audiencePublicUrl: this.store.config.audiencePublicUrl || '', audienceStatus: this.pubStatus || 'aus', audioOut: this.audioOut(), themeTemplates: this._themeTemplates() } };
+  }
+
+  _themeTemplates() {
+    return (this.store.config.themeTemplates || []).map((t) => ({ id: t.id, name: t.name, primary: t.theme.primary, secondary: t.theme.secondary, accent: t.theme.accent, font: t.theme.headingFont || t.theme.font }));
   }
 
   audioOut() { return Object.assign({ enabled: true, output: '1', deviceId: '', label: '' }, this.store.config.audioOut || {}, { app: !!this.hooks.desktop }); }
@@ -616,6 +620,33 @@ class CueServer extends EventEmitter {
         const pr = Types.THEME_PRESETS[a.preset];
         if (!pr) throw new HttpError(404, 'Preset unbekannt');
         Object.assign(p.theme, JSON.parse(JSON.stringify(pr)), { preset: a.preset });
+        return done();
+      }
+      /* Eigene Theme-Vorlagen (gelten für alle Projekte dieses Rechners) */
+      case 'theme.template.save': {
+        const name = String(a.name || '').trim().slice(0, 60);
+        if (!name) throw new HttpError(400, 'Bitte einen Namen angeben');
+        const list = this.store.config.themeTemplates || (this.store.config.themeTemplates = []);
+        const theme = JSON.parse(JSON.stringify(p.theme)); delete theme.preset;
+        let t = list.find((x) => x.name.toLowerCase() === name.toLowerCase());
+        if (t) { t.theme = theme; t.name = name; t.updated = Date.now(); }
+        else { t = { id: require('crypto').randomBytes(5).toString('hex'), name, created: Date.now(), theme }; list.push(t); }
+        p.theme.preset = 'tpl:' + t.id;
+        this.store.saveConfig();
+        return done({ id: t.id, overwritten: !!t.updated });
+      }
+      case 'theme.template.apply': {
+        const t = (this.store.config.themeTemplates || []).find((x) => x.id === a.id);
+        if (!t) throw new HttpError(404, 'Vorlage nicht gefunden');
+        Object.assign(p.theme, JSON.parse(JSON.stringify(t.theme)), { preset: 'tpl:' + t.id });
+        return done();
+      }
+      case 'theme.template.delete': {
+        const list = this.store.config.themeTemplates || [];
+        const i = list.findIndex((x) => x.id === a.id);
+        if (i < 0) throw new HttpError(404, 'Vorlage nicht gefunden');
+        list.splice(i, 1);
+        this.store.saveConfig();
         return done();
       }
       case 'settings.update': { Object.assign(p.settings, pick(a.settings || {}, ['takeMode', 'resolution', 'safeAreaGuide'])); return done(); }

@@ -563,7 +563,26 @@
     const set = (k, v) => { patch[k] = v; upd(Object.assign({}, patch)); };
     const presets = h('div', { class: 'row' }, Object.entries(T.THEME_PRESETS).map(([key, p]) =>
       h('button', { class: 'btn' + (th.preset === key ? ' on' : ''), onclick: () => run('theme.preset', { preset: key }), style: { borderLeft: `6px solid ${p.primary}` } }, p.name)));
-    ed.appendChild(h('div', { class: 'card' }, h('h3', null, 'Vorlagen'), presets, h('p', { class: 'hint' }, 'Eine Vorlage überschreibt Farben, Schriften und Animation. Danach beliebig anpassen.')));
+    const tpls = (S.info && S.info.themeTemplates) || [];
+    const swatch = (t) => h('span', { class: 'tpl-sw' }, [t.primary, t.secondary, t.accent].map((c) => h('i', { style: { background: c || 'transparent' } })));
+    const own = h('div', { class: 'row', style: { flexWrap: 'wrap' } },
+      tpls.length ? tpls.map((t) => h('span', { class: 'tpl' + (th.preset === 'tpl:' + t.id ? ' on' : '') },
+        h('button', { class: 'tpl-apply', title: 'Vorlage anwenden', onclick: () => run('theme.template.apply', { id: t.id }) }, swatch(t), t.name),
+        h('button', { class: 'tpl-del', title: 'Vorlage löschen', onclick: async () => { if (await UI.confirm('Vorlage löschen?', `„${t.name}“ wird für alle Projekte entfernt.`, 'Löschen')) run('theme.template.delete', { id: t.id }); } }, '✕')))
+        : h('span', { class: 'hint', style: { margin: 0 } }, 'Noch keine eigenen Vorlagen.'));
+    const saveTpl = async () => {
+      const cur = tpls.find((t) => th.preset === 'tpl:' + t.id);
+      const name = await UI.prompt('Theme als Vorlage speichern', cur ? cur.name : '', 'Name der Vorlage (gleicher Name = überschreiben)');
+      if (!name || !name.trim()) return;
+      const exists = tpls.find((t) => t.name.toLowerCase() === name.trim().toLowerCase());
+      if (exists && !(await UI.confirm('Vorlage überschreiben?', `„${exists.name}“ gibt es schon. Mit dem aktuellen Theme überschreiben?`, 'Überschreiben'))) return;
+      await new Promise((r) => setTimeout(r, 300)); // ausstehende Theme-Änderungen zuerst senden
+      try { await cmd('theme.template.save', { name: name.trim() }); toast(exists ? 'Vorlage aktualisiert' : 'Vorlage gespeichert', 'ok'); } catch (e) { toast(e.message, 'err'); }
+    };
+    ed.appendChild(h('div', { class: 'card' }, h('h3', null, 'Vorlagen', h('span', { class: 'sp' }), h('button', { class: 'btn sm primary', onclick: saveTpl }, '＋ Aktuelles Theme als Vorlage speichern')),
+      h('div', { class: 'tpl-group' }, h('label', null, 'Eingebaut'), presets),
+      h('div', { class: 'tpl-group' }, h('label', null, 'Eigene Vorlagen'), own),
+      h('p', { class: 'hint' }, 'Eine Vorlage überschreibt Farben, Schriften, Animation und eigenes CSS. Danach beliebig anpassen. Eigene Vorlagen gelten für alle Projekte auf diesem Rechner.')));
     const sys = S.sysFonts || [];
     const fonts = [{ group: 'Standard (überall verfügbar)', options: SYSTEM_FONTS }];
     if (fontNames().length) fonts.push({ group: 'Hochgeladen (Medien)', options: fontNames().map((f) => [`"${f}", sans-serif`, f]) });
