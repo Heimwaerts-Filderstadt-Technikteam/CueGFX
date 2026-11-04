@@ -94,6 +94,7 @@
     if (S.tab === 'graphics') renderEditor(); else renderTab();
     renderLiveList();
     buildPgmSelect(true);
+    if (advModal) renderAudienceAdvanced();
   }
 
   function renderHeader() {
@@ -654,6 +655,29 @@
       h('div', { class: 'qa' }, acts));
   }
 
+  /* ---------- Erweiterte Publikums-Einstellungen (eigenes Fenster) ---------- */
+  let advModal = null;
+  function openAudienceAdvanced() {
+    if (advModal) return;
+    const body = h('div', { class: 'adv-body' });
+    advModal = modal('Publikumsseite – erweiterte Einstellungen', body, { width: 1180, focus: false, onClose: () => {
+      if (audPhone && body.contains(audPhone) && typeof keepBox.moveBefore === 'function') { try { keepBox.moveBefore(audPhone, null); } catch (_) {} }
+      advModal = null;
+    } });
+    advModal.body = body;
+    renderAudienceAdvanced();
+  }
+  function renderAudienceAdvanced(force) {
+    if (!advModal || !S.project) return;
+    const body = advModal.body;
+    if (!force && UI.isEditing(body)) return;
+    if (audPhone && body.contains(audPhone) && typeof keepBox.moveBefore === 'function') { try { keepBox.moveBefore(audPhone, null); } catch (_) {} }
+    const scroll = advModal.el.scrollTop;
+    body.innerHTML = '';
+    viewAudienceDesign(body, (S.info && S.info.lan) || []);
+    advModal.el.scrollTop = scroll;
+  }
+
   const AUD_FONTS = [['', 'Systemschrift des Handys'], ['Inter, "Helvetica Neue", Arial, sans-serif', 'Inter / Helvetica'], ['Georgia, serif', 'Georgia'], ['"Trebuchet MS", Arial, sans-serif', 'Trebuchet'], ['Verdana, sans-serif', 'Verdana']];
   function viewAudienceDesign(ed, lan) {
     const info = S.info || {};
@@ -671,6 +695,22 @@
         h('div', { class: 'field' }, h('label', null, 'Öffentliche Adresse der Publikumsseite'), urlInp),
         h('div', { class: 'field' }, h('label', null, 'Öffentlicher Port (nur Publikumsseite, 0 = aus)'), h('div', { class: 'row' }, portInp, h('button', { class: 'btn sm primary', onclick: saveAccess }, 'Übernehmen')))),
       h('p', { class: 'hint' }, 'Die Adresse wird für QR-Codes und ', h('code', null, '{{audience_url}}'), ' verwendet. Leer = Adresse im lokalen Netz.'),
+      h('div', { class: 'row', style: { marginTop: '4px' } },
+        h('button', { class: 'btn sm', disabled: !!(S.audTest && S.audTest.running), onclick: async () => {
+          const target = urlInp.value.trim();
+          if (!target) { toast('Bitte zuerst eine Adresse eintragen', 'err'); return; }
+          if (target.replace(/\/+$/, '') !== (info.audiencePublicUrl || '').replace(/\/+$/, '')) run('audience.access', { publicUrl: target });
+          S.audTest = { running: true, url: target };
+          renderAudienceAdvanced(true);
+          try { S.audTest = await api('/api/audience-test', { method: 'POST', body: JSON.stringify({ url: target }) }); }
+          catch (e) { S.audTest = { ok: false, steps: [{ ok: false, label: 'Test', detail: e.message }] }; }
+          S.audTest.at = new Date();
+          renderAudienceAdvanced(true);
+        } }, S.audTest && S.audTest.running ? 'Teste …' : '🔍 Domain testen'),
+        S.audTest && !S.audTest.running ? h('span', { class: 'pill ' + (S.audTest.ok ? 'ok' : 'err') }, S.audTest.ok ? 'Erreichbar – Eingabemaske lädt' : 'Problem gefunden') : null,
+        S.audTest && S.audTest.at ? h('span', { class: 'hint', style: { margin: 0 } }, 'zuletzt ' + S.audTest.at.toLocaleTimeString('de-DE')) : null),
+      S.audTest && S.audTest.steps ? h('ul', { class: 'test-steps' }, S.audTest.steps.map((x) =>
+        h('li', { class: x.ok ? 'ok' : x.warn ? 'warn' : 'err' }, h('b', null, (x.ok ? '✓ ' : x.warn ? '! ' : '✗ ') + x.label), ' – ', x.detail))) : null,
       h('details', { class: 'howto' }, h('summary', null, 'Anleitung: Nginx Proxy Manager'),
         h('ol', null,
           h('li', null, 'Im DNS der Domain einen Eintrag (A/CNAME) auf euren Nginx Proxy Manager setzen.'),
@@ -743,7 +783,7 @@
     const setQs = (patch) => run('qa.settings', patch);
     const sw = (key, label, title) => h('label', { class: 'switch', title: title || '' }, h('input', { type: 'checkbox', checked: !!qs[key], onchange: (e) => setQs({ [key]: e.target.checked }) }), label);
     const titleInp = h('input', { class: 'inp', value: qs.title, oninput: debounce(() => setQs({ title: titleInp.value }), 300) });
-    ed.appendChild(h('div', { class: 'card' }, h('h3', null, 'Publikums-Seite'),
+    ed.appendChild(h('div', { class: 'card has-gear' }, h('h3', null, 'Publikums-Seite'),
       h('div', { class: 'row', style: { alignItems: 'flex-start' } },
         h('img', { src: `/api/qr.svg?text=${encodeURIComponent(audUrl)}&border=2`, style: { width: '120px', height: '120px', borderRadius: '6px', background: '#fff' } }),
         h('div', { class: 'grow' },
@@ -754,10 +794,8 @@
           h('div', { class: 'row', style: { marginTop: '10px', gap: '16px' } },
             sw('open', 'Fragen erlaubt'), sw('moderation', 'Fragen vor Freigabe prüfen', 'Neue Fragen landen zuerst unter „Prüfen“'),
             sw('allowLikes', 'Likes erlaubt'), sw('showQuestions', 'Publikum sieht Fragenliste'), sw('requireName', 'Name Pflicht')),
-          h('p', { class: 'hint' }, 'Tipp: Grafik „Q&A live“ mit QR-Code einblenden oder im QR-Code-Grafiktyp ', h('code', null, '{{audience_url}}'), ' verwenden.')))));
-
-    // Öffentliche Adresse & Gestaltung
-    viewAudienceDesign(ed, lan);
+          h('p', { class: 'hint' }, 'Tipp: Grafik „Q&A live“ mit QR-Code einblenden oder im QR-Code-Grafiktyp ', h('code', null, '{{audience_url}}'), ' verwenden.'))),
+      h('button', { class: 'gear-btn', title: 'Erweiterte Einstellungen: eigene Domain & Gestaltung', onclick: () => openAudienceAdvanced() }, '⚙')));
 
     // Sperrwörter
     const bw = h('textarea', { class: 'inp code', rows: 4, placeholder: 'ein Wort pro Zeile, z. B.\nidiot\nscheiß*\n*werbung*' });

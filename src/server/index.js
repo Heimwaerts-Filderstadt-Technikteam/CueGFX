@@ -45,6 +45,7 @@ class CueServer extends EventEmitter {
     this._audDirty = true;
     this._audTimer = null;
     this.chatLog = [];
+    this.instanceId = require('crypto').randomBytes(8).toString('hex');
     this.sysFonts = new SystemFonts(opts.fontDirs ? { dirs: opts.fontDirs } : undefined);
     this.chat = new ChatHub(this.store, opts.chatOpts);
     this.chat.on('message', (m) => {
@@ -121,6 +122,7 @@ class CueServer extends EventEmitter {
     const url = new URL(req.url, 'http://localhost');
     const p = decodeURIComponent(url.pathname);
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-CueGFX-Instance', this.instanceId);
     res.setHeader('Referrer-Policy', 'no-referrer');
     if (p === '/' || p === '/audience' || p === '/audience/' || p === '/index.html') return this._file(res, path.join(PUBLIC, 'audience', 'index.html'));
     if (p === '/shared/client.js') return this._file(res, path.join(PUBLIC, 'shared', 'client.js'));
@@ -132,6 +134,80 @@ class CueServer extends EventEmitter {
     const sf = p.match(/^\/api\/sysfont\/(\d+)/);
     if (sf && allow.sysfont.has(Number(sf[1]))) return this._api(req, res, url, p.slice(5));
     throw new HttpError(404, 'Nicht gefunden');
+  }
+
+  /* Prüft, ob die Publikumsseite unter der eigenen Domain erreichbar ist und funktioniert */
+  async _testAudienceUrl(urlStr) {
+    const steps = [];
+    const add = (ok, label, detail, warn) => steps.push({ ok, warn: !!warn, label, detail });
+    const done = () => ({ ok: steps.every((x) => x.ok || x.warn), steps, url: urlStr });
+    let u;
+    try {
+      let raw = String(urlStr || '').trim();
+      if (!raw) { add(false, 'Adresse', 'Keine öffentliche Adresse eingetragen'); return done(); }
+      if (!/^https?:\/\//i.test(raw)) raw = 'https://' + raw;
+      u = new URL(raw);
+    } catch (_) { add(false, 'Adresse', 'Ungültige Adresse'); return done(); }
+    const base = u.origin + (u.pathname.endsWith('/') ? u.pathname : u.pathname + '/');
+    // 1. DNS
+    try {
+      const r = await require('dns').promises.lookup(u.hostname);
+      add(true, 'DNS', `${u.hostname} → ${r.address}`);
+    } catch (e) { add(false, 'DNS', `${u.hostname} lässt sich nicht auflösen (${e.code || e.message}) – DNS-Eintrag prüfen`); return done(); }
+    // 2. Seite laden
+    const explain = (e) => {
+      const c = (e.cause && (e.cause.code || e.cause.message)) || e.name || e.message;
+      if (/TimeoutError|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT/.test(c)) return 'Zeitüberschreitung – Port 80/443 am Router freigegeben? Proxy erreichbar?';
+      if (/ECONNREFUSED/.test(c)) return 'Verbindung abgelehnt – läuft der Proxy, ist der Port offen?';
+      if (/CERT|SSL|TLS|self.signed|ALTNAME|UNABLE_TO_VERIFY/i.test(c)) return `HTTPS-Zertifikat ungültig (${c}) – im NPM unter „SSL“ ein Let’s-Encrypt-Zertifikat für diese Domain anfordern`;
+      if (/ENOTFOUND|EAI_AGAIN/.test(c)) return 'Domain nicht gefunden';
+      return c;
+    };
+    let res, html = '', t0 = Date.now();
+    try {
+      res = await fetch(base, { redirect: 'follow', signal: AbortSignal.timeout(10000), headers: { 'cache-control': 'no-cache', 'user-agent': 'CueGFX-Selbsttest' } });
+      html = await res.text();
+    } catch (e) { add(false, 'Verbindung', explain(e)); return done(); }
+    const ms = Date.now() - t0;
+    if (!res.ok) {
+      const hint = res.status === 502 || res.status === 504 ? ' – der Proxy erreicht CueGFX nicht: Forward-IP/Port im NPM und Firewall dieses Rechners prüfen' : res.status === 404 ? ' – Proxy-Host/Pfad prüfen' : '';
+      add(false, 'Seite laden', `HTTP ${res.status}${hint}`);
+      return done();
+    }
+    add(true, 'Seite laden', `HTTP ${res.status} in ${ms} ms${u.protocol === 'https:' ? ' · HTTPS-Zertifikat gültig' : ''}`);
+    // 3. Eingabemaske dieser CueGFX-Installation?
+    const isAudience = /id="ask"/.test(html) && /id="q"/.test(html) && /\/shared\/client\.js/.test(html);
+    const inst = res.headers.get('x-cuegfx-instance');
+    if (!isAudience) { add(false, 'Eingabemaske', 'Unter der Adresse antwortet eine andere Seite (z. B. Standardseite des Proxys) – Forward-Port auf den öffentlichen Port von CueGFX stellen'); return done(); }
+    if (inst && inst !== this.instanceId) add(false, 'Eingabemaske', 'Publikumsseite gefunden, aber von einer anderen CueGFX-Installation');
+    else if (!inst) add(true, 'Eingabemaske', 'Fragefeld gefunden (über den Steuerungs-Port statt den öffentlichen Port – besser auf den öffentlichen Port weiterleiten)', true);
+    else add(true, 'Eingabemaske', 'Publikumsseite mit Fragefeld dieser CueGFX-Installation geladen');
+    // 4. Gestaltung erreichbar
+    try {
+      const c = await fetch(u.origin + '/api/audience.css', { signal: AbortSignal.timeout(8000) });
+      add(c.ok, 'Gestaltung', c.ok ? 'Design-Datei geladen' : `Design-Datei: HTTP ${c.status}`);
+    } catch (e) { add(false, 'Gestaltung', explain(e)); }
+    // 5. WebSocket (Live-Updates, Fragen senden)
+    const wsUrl = (u.protocol === 'https:' ? 'wss://' : 'ws://') + u.host + '/ws?role=audience&voter=cuegfx-selbsttest';
+    const wsOk = await new Promise((resolve) => {
+      if (typeof WebSocket !== 'function') return resolve('WebSocket-Test in dieser Version nicht möglich');
+      let w; const t = setTimeout(() => { try { w.close(); } catch (_) {} resolve('Keine Antwort'); }, 8000);
+      try { w = new WebSocket(wsUrl); } catch (e) { clearTimeout(t); return resolve(e.message); }
+      w.onmessage = (ev) => { try { if (JSON.parse(ev.data).t === 'audience') { clearTimeout(t); w.close(); resolve(true); } } catch (_) {} };
+      w.onerror = () => { clearTimeout(t); resolve('Verbindung abgelehnt'); };
+    });
+    if (wsOk === true) add(true, 'Live-Verbindung', 'WebSocket funktioniert – Fragen und Likes kommen live an');
+    else add(false, 'Live-Verbindung', `WebSocket fehlgeschlagen (${wsOk}) – im NPM beim Proxy-Host „Websockets Support“ einschalten`);
+    // 6. Weiterleitung http → https (nur Hinweis)
+    if (u.protocol === 'https:') {
+      try {
+        const r = await fetch('http://' + u.host + '/', { redirect: 'manual', signal: AbortSignal.timeout(6000) });
+        const loc = r.headers.get('location') || '';
+        if (r.status >= 300 && r.status < 400 && loc.startsWith('https:')) add(true, 'HTTPS erzwingen', 'http:// wird auf https:// umgeleitet');
+        else add(false, 'HTTPS erzwingen', 'http:// wird nicht auf https:// umgeleitet – im NPM unter „SSL“ „Force SSL“ einschalten (optional)', true);
+      } catch (_) { add(false, 'HTTPS erzwingen', 'http:// nicht erreichbar (Port 80 zu) – für Let’s Encrypt-Verlängerung meist nötig', true); }
+    }
+    return done();
   }
 
   /* Schriftfamilie aus einem CSS-Wert wie '"Avenir Next", sans-serif' */
@@ -831,6 +907,10 @@ class CueServer extends EventEmitter {
     if (route === 'info') return this._json(res, { app: 'CueGFX', version: VERSION, build: BUILD, port: this.port, lan: this.lanUrls(), pin: !!this.store.config.accessPin, desktop: !!this.hooks.desktop });
 
     if (route === 'state') return this._json(res, { project: this.project, vars: this.variables(), serverTime: Date.now() });
+    if (route === 'audience-test' && m === 'POST') {
+      const a = await this._args(req, url);
+      return this._json(res, await this._testAudienceUrl(a.url || this.store.config.audiencePublicUrl));
+    }
     if (route === 'cmd' && m === 'POST') {
       const a = await this._args(req, url);
       if (!a.cmd || typeof a.cmd !== 'string') throw new HttpError(400, 'Befehl fehlt: {"cmd": "…", "args": {…}}');

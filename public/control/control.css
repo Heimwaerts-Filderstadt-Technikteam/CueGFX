@@ -315,3 +315,11 @@ a.btn { text-decoration: none; color: inherit; display: inline-block; }
 .aud-prev { width: 375px; height: 750px; border: 0; transform: scale(.6613); transform-origin: 0 0; }
 .howto { margin-top: 6px; } .howto summary { cursor: pointer; color: var(--fg2); font-size: 13px; } .howto ol { margin: 8px 0 6px 18px; padding: 0; font-size: 13px; line-height: 1.6; }
 @media (max-width: 1300px) { .aud-design { flex-direction: column; } .aud-phone { position: static; } }
+
+.card.has-gear { position: relative; padding-bottom: 34px; }
+.gear-btn { position: absolute; right: 10px; bottom: 8px; width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line2); background: var(--bg3); color: var(--fg2); font-size: 17px; line-height: 1; cursor: pointer; display: grid; place-items: center; transition: transform .2s, color .15s; }
+.gear-btn:hover { color: var(--fg); transform: rotate(45deg); border-color: var(--acc); }
+.adv-body .card { margin-bottom: 12px; }
+.test-steps { list-style: none; margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); font-size: 12.5px; line-height: 1.7; }
+.test-steps li.ok b { color: #8ff0b4; } .test-steps li.err b { color: #ff9aa6; } .test-steps li.warn b { color: #ffd65a; }
+.test-steps li.err { color: var(--fg); }

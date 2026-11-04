@@ -154,6 +154,10 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
   const pst = async (u) => (await fetch(pub + u)).status;
   ok(server.pubStatus === 'läuft' && (await (await fetch(pub + '/')).text()).includes('id="ask"'), 'Öffentlicher Port zeigt die Publikumsseite');
   ok(await pst('/control') === 404 && await pst('/api/state') === 404 && await pst('/api/graphics') === 404 && await pst('/output/1') === 404, 'Öffentlicher Port sperrt Steuerung, API und Ausgänge');
+  const dt = (await get('/api/audience-test', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: pub }) })).body;
+  ok(dt.ok && dt.steps.some((x) => x.label === 'Live-Verbindung' && x.ok), 'Domain-Test: Seite, Eingabemaske und WebSocket erreichbar');
+  const dt2 = (await get('/api/audience-test', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: 'https://gibt-es-nicht.invalid' }) })).body;
+  ok(!dt2.ok && dt2.steps[0].label === 'DNS', 'Domain-Test erkennt nicht auflösbare Domain');
   server.exec('audience.access', { publicUrl: 'fragen.example.org' });
   ok(server._audienceUrl() === 'https://fragen.example.org', 'Eigene Domain wird für QR-Codes verwendet');
 
