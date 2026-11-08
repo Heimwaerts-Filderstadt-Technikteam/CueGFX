@@ -150,6 +150,11 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
   ok(server.project.theme.primary === '#009982' && server._statePayload().info.themeTemplates.length === 1, 'Eigene Theme-Vorlage speichern und anwenden');
   server.exec('theme.template.delete', { id: tid });
   ok(!server.store.config.themeTemplates.length, 'Theme-Vorlage löschen');
+  const mdx = await get('/api/qa/export.md?scope=all');
+  const mdt = mdx.body.toString();
+  ok(mdx.status === 200 && /^# Alle Fragen/m.test(mdt) && /## Offen/.test(mdt) && /## Gelöst/.test(mdt) && /## Abgelehnt/.test(mdt), 'Q&A-Export als Markdown (alle Status)');
+  ok((await get('/api/qa/export.html?scope=open&print=1')).body.toString().includes('Als PDF sichern'), 'Q&A-Druckansicht für PDF im Browser');
+  ok((await get('/api/qa/export.pdf')).status === 501, 'PDF ohne Desktop-App → Hinweis auf Druckansicht');
   ok((await get('/api/cmd', { method: 'POST' })).status === 400, '/api/cmd ohne Befehl → 400 statt Absturz');
   server.exec('audio.out', { output: '2', deviceId: 'abc', label: 'USB Audio' });
   ok(server.audioOut().output === '2' && server.audioOut().label === 'USB Audio' && server._statePayload().info.audioOut.deviceId === 'abc', 'Ton-Ausgabe: Ausgang und Gerät gespeichert');

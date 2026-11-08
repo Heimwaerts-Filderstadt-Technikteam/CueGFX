@@ -331,6 +331,89 @@ class CueServer extends EventEmitter {
     return { t: 'state', serverTime: Date.now(), project: this.project, vars: this.variables(), info: { version: VERSION, build: BUILD, port: this.port, lan: this._lanCache.urls, audienceUrl: this._audienceUrl(), audiencePort: Number(this.store.config.audiencePort) || 0, audiencePublicUrl: this.store.config.audiencePublicUrl || '', audienceStatus: this.pubStatus || 'aus', audioOut: this.audioOut(), themeTemplates: this._themeTemplates() } };
   }
 
+  /* ---------- Q&A-Export (Markdown / HTML / PDF) ---------- */
+  _qaData(scope) {
+    const p = this.project;
+    const qs = p.questions || [];
+    const byLikes = (a, b) => (b.likes - a.likes) || (a.ts - b.ts);
+    const groups = [];
+    const add = (key, title, items) => { if (scope === 'all' || scope === key || (scope === 'open' && key === 'pending')) groups.push({ key, title, items: items.slice().sort(byLikes) }); };
+    add('pending', 'Offen – wartet auf Freigabe', qs.filter((q) => q.status === 'pending'));
+    add('open', 'Offen', qs.filter((q) => q.status === 'live' && !q.resolved));
+    add('resolved', 'Gelöst', qs.filter((q) => q.status === 'live' && q.resolved));
+    add('rejected', 'Abgelehnt', qs.filter((q) => q.status === 'rejected'));
+    const counts = { open: qs.filter((q) => q.status === 'pending' || (q.status === 'live' && !q.resolved)).length, resolved: qs.filter((q) => q.status === 'live' && q.resolved).length, rejected: qs.filter((q) => q.status === 'rejected').length };
+    const now = new Date();
+    const fmt = (t) => new Date(t).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const scopeLabel = { all: 'Alle Fragen', open: 'Offene Fragen', resolved: 'Gelöste Fragen', rejected: 'Abgelehnte Fragen' }[scope];
+    const safe = (p.name || 'Projekt').replace(/[^\wäöüÄÖÜß.-]+/g, '-').replace(/^-+|-+$/g, '');
+    const fname = `Fragen-${safe}-${scope === 'all' ? 'alle' : { open: 'offen', resolved: 'geloest', rejected: 'abgelehnt' }[scope]}-${now.toISOString().slice(0, 10)}`;
+    return { project: p.name, scopeLabel, groups, counts, total: groups.reduce((n, g) => n + g.items.length, 0), generated: fmt(now), fmt, fname };
+  }
+
+  _qaMarkdown(D) {
+    const esc = (t) => String(t || '').replace(/\r/g, '').replace(/([\\`*_[\]<>#|])/g, '\\$1');
+    const out = [`# ${esc(D.scopeLabel)} – ${esc(D.project)}`, '', `Export vom ${D.generated} · ${D.total} Frage${D.total === 1 ? '' : 'n'} (offen ${D.counts.open}, gelöst ${D.counts.resolved}, abgelehnt ${D.counts.rejected})`, ''];
+    for (const g of D.groups) {
+      out.push(`## ${g.title} (${g.items.length})`, '');
+      if (!g.items.length) { out.push('_Keine Fragen._', ''); continue; }
+      g.items.forEach((q, i) => {
+        const meta = [q.author ? esc(q.author) : 'anonym', `▲ ${q.likes || 0}`, D.fmt(q.ts)];
+        if (q.active) meta.push('★ aktiv');
+        if ((q.flagged || []).length) meta.push(`Sperrwort: ${esc(q.flagged.join(', '))}`);
+        out.push(`${i + 1}. ${esc(q.text).split('\n').join('  \n   ')}  `, `   — ${meta.join(' · ')}`, '');
+      });
+    }
+    return out.join('\n');
+  }
+
+  _qaHtml(D, print) {
+    const e = (t) => String(t || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const color = { pending: '#b7791f', open: '#2563eb', resolved: '#15803d', rejected: '#b91c1c' };
+    const sec = D.groups.map((g) => `<section><h2 style="border-color:${color[g.key]}"><span>${e(g.title)}</span><small>${g.items.length}</small></h2>${g.items.length ? `<ol>${g.items.map((q) => `<li><div class="t">${e(q.text).replace(/\n/g, '<br>')}</div><div class="m"><b>${e(q.author || 'anonym')}</b><span>▲ ${q.likes || 0}</span><span>${e(D.fmt(q.ts))}</span>${q.active ? '<span class="tag">★ aktiv</span>' : ''}${(q.flagged || []).length ? `<span class="tag warn">Sperrwort: ${e(q.flagged.join(', '))}</span>` : ''}</div></li>`).join('')}</ol>` : '<p class="none">Keine Fragen.</p>'}</section>`).join('');
+    return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${e(D.fname)}</title><style>
+@page { size: A4; margin: 16mm 15mm 18mm; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 24px; font: 11pt/1.45 -apple-system, "Segoe UI", Inter, Helvetica, Arial, sans-serif; color: #15181d; background: #fff; }
+@media print { body { padding: 0; } .noprint { display: none !important; } }
+header { border-bottom: 2px solid #15181d; padding-bottom: 10px; margin-bottom: 18px; }
+h1 { margin: 0 0 4px; font-size: 20pt; } header p { margin: 0; color: #555; font-size: 10pt; }
+.stats { display: flex; gap: 8px; margin-top: 10px; } .stats span { border: 1px solid #ddd; border-radius: 99px; padding: 2px 10px; font-size: 9pt; }
+h2 { display: flex; justify-content: space-between; align-items: baseline; font-size: 13pt; margin: 22px 0 8px; padding-left: 10px; border-left: 5px solid; break-after: avoid; }
+h2 small { color: #666; font-weight: 600; }
+ol { margin: 0; padding-left: 24px; } li { margin: 0 0 10px; padding: 8px 10px; border: 1px solid #e3e5e8; border-radius: 6px; break-inside: avoid; }
+li::marker { color: #888; font-weight: 700; } .t { font-weight: 600; white-space: normal; overflow-wrap: anywhere; }
+.m { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: 9pt; color: #555; } .m b { color: #15181d; }
+.tag { background: #fff4d6; color: #7a5200; border-radius: 4px; padding: 0 6px; } .tag.warn { background: #fde2e2; color: #8a1c1c; }
+.none { color: #888; font-style: italic; margin: 0 0 0 10px; }
+.bar { position: sticky; top: 0; background: #f4f5f7; border: 1px solid #ddd; border-radius: 8px; padding: 8px 12px; margin-bottom: 16px; display: flex; gap: 10px; align-items: center; font-size: 10pt; }
+.bar button { font: inherit; padding: 5px 12px; border-radius: 6px; border: 1px solid #bbb; background: #fff; cursor: pointer; }
+</style></head><body>${print ? '<div class="bar noprint"><button onclick="print()">🖨 Drucken / Als PDF sichern</button><span>Tipp: Im Druckdialog „Als PDF sichern“ wählen.</span></div>' : ''}
+<header><h1>${e(D.scopeLabel)} – ${e(D.project)}</h1><p>Export vom ${e(D.generated)} · CueGFX</p><div class="stats"><span>${D.total} Frage${D.total === 1 ? '' : 'n'}</span><span>offen ${D.counts.open}</span><span>gelöst ${D.counts.resolved}</span><span>abgelehnt ${D.counts.rejected}</span></div></header>
+${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></html>`;
+  }
+
+  async _qaExport(res, url, kind) {
+    const scope = ['all', 'open', 'resolved', 'rejected'].includes(url.searchParams.get('scope')) ? url.searchParams.get('scope') : 'all';
+    const D = this._qaData(scope);
+    const dispo = (ext) => `attachment; filename*=UTF-8''${encodeURIComponent(D.fname + '.' + ext)}`;
+    if (kind === 'md') {
+      const body = Buffer.from(this._qaMarkdown(D), 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8', 'Content-Length': body.length, 'Content-Disposition': dispo('md') });
+      return res.end(body);
+    }
+    if (kind === 'html') {
+      const body = Buffer.from(this._qaHtml(D, url.searchParams.get('print') === '1'), 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': body.length, 'Cache-Control': 'no-store' });
+      return res.end(body);
+    }
+    // PDF: in der Desktop-App direkt erzeugen, sonst Druckansicht nutzen
+    if (!this.hooks.printPdf) throw new HttpError(501, 'PDF-Erzeugung nur in der Desktop-App – bitte die Druckansicht nutzen');
+    const pdf = await this.hooks.printPdf(this._qaHtml(D, false), `Fragen · ${D.project}`);
+    res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Length': pdf.length, 'Content-Disposition': dispo('pdf') });
+    res.end(pdf);
+  }
+
   sdiShareCfg() { return Object.assign({ auto: false, delay: 5, protect: true }, this.store.config.sdiShare || {}); }
   /* Grafiken, die gerade auf einem Ausgang laufen, der auf eine geteilte DeckLink-Karte geht */
   sdiLiveConflict() {
@@ -1043,6 +1126,7 @@ class CueServer extends EventEmitter {
 
     /* Export / Import */
     if (route === 'export' && m === 'GET') return this._export(res, url);
+    if (parts[0] === 'qa' && /^export\.(md|html|pdf)$/.test(parts[1] || '') && m === 'GET') return this._qaExport(res, url, parts[1].split('.')[1]);
     if (route === 'import' && m === 'POST') return this._import(req, res, url);
 
     /* Zugriff */

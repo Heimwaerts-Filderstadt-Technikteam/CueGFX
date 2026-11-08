@@ -786,6 +786,27 @@
     slot.replaceWith(node);
   }
 
+  /* Fragen exportieren: Markdown direkt, PDF in der Desktop-App direkt, im Browser über die Druckansicht */
+  function qaDownload(scope, kind) {
+    if (kind === 'pdf' && !window.CUE_DESKTOP) { window.open(`/api/qa/export.html?scope=${scope}&print=1`, '_blank'); return; }
+    const a = h('a', { href: `/api/qa/export.${kind}?scope=${scope}`, download: '' });
+    document.body.appendChild(a); a.click(); a.remove();
+    toast(kind === 'pdf' ? 'PDF wird erstellt …' : 'Markdown wird heruntergeladen', 'ok');
+  }
+  function qaExportMenu(anchor) {
+    const cur = S.qaFilter || 'open';
+    const curName = { open: 'Offen', resolved: 'Gelöst', rejected: 'Abgelehnt' }[cur];
+    menu(anchor, [
+      { label: '⤓ Alle Fragen (offen, gelöst, abgelehnt) als PDF', action: () => qaDownload('all', 'pdf') },
+      { label: '⤓ Alle Fragen (offen, gelöst, abgelehnt) als Markdown', action: () => qaDownload('all', 'md') },
+      '-',
+      { label: `Nur „${curName}“ als PDF`, action: () => qaDownload(cur, 'pdf') },
+      { label: `Nur „${curName}“ als Markdown`, action: () => qaDownload(cur, 'md') },
+      '-',
+      { label: 'Druckansicht öffnen', action: () => window.open(`/api/qa/export.html?scope=all&print=1`, '_blank') }
+    ]);
+  }
+
   async function editQuestion(q) {
     const ta = h('textarea', { class: 'inp', rows: 4 }); ta.value = q.text;
     const au = h('input', { class: 'inp', value: q.author });
@@ -867,7 +888,8 @@
           let g = S.project.graphics.find((x) => x.type === 'qawall');
           if (!g) { const r = await cmd('graphic.add', { type: 'qawall', name: 'Q&A live' }); g = { id: r.id }; }
           select(g.id);
-        } }, 'Q&A-Grafik')),
+        } }, 'Q&A-Grafik'),
+        h('button', { class: 'btn xs', title: 'Fragen als Markdown oder PDF exportieren', onclick: (e) => qaExportMenu(e.currentTarget) }, '⤓ Export')),
       h('div', { class: 'row', style: { marginBottom: '10px' } },
         ...filters.map(([k, l]) => h('button', { class: 'btn sm' + (S.qaFilter === k ? ' on' : ''), onclick: () => { S.qaFilter = k; renderTab(true); } }, l)),
         h('span', { class: 'grow' }), ...bulk),

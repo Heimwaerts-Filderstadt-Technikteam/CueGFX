@@ -32,7 +32,19 @@ async function startServer() {
       get decklink() { return decklink; },
       get displays() { return displays; },
       get ndi() { return ndi; },
-      mainWindow: () => controlWin
+      mainWindow: () => controlWin,
+      // HTML → PDF (A4, mit Seitenzahlen) über ein unsichtbares Fenster
+      printPdf: async (html, title) => {
+        const w = new BrowserWindow({ show: false, width: 900, height: 1200, webPreferences: { sandbox: true, contextIsolation: true, javascript: false } });
+        try {
+          await w.loadURL('data:text/html;charset=utf-8;base64,' + Buffer.from(html, 'utf8').toString('base64'));
+          return await w.webContents.printToPDF({
+            pageSize: 'A4', printBackground: true, preferCSSPageSize: true, displayHeaderFooter: true,
+            headerTemplate: '<div></div>',
+            footerTemplate: `<div style="width:100%;font-size:8px;color:#888;padding:0 15mm;display:flex;justify-content:space-between"><span>${String(title || '').replace(/[<&]/g, '')}</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`
+          });
+        } finally { if (!w.isDestroyed()) w.destroy(); }
+      }
     }
   });
   for (let i = 0; i < 20; i++) {
