@@ -249,3 +249,13 @@ TikTok bietet keine offizielle Schnittstelle für Live-Kommentare; Social Stream
 4. In CueGFX unter *Publikum → Eigene Adresse* die Domain eintragen – QR-Codes und `{{audience_url}}` verwenden dann diese Adresse.
 
 **Gestaltung:** Überschrift, Begrüßungstext, Logo, heller/dunkler Grundstil, Haupt- und Akzentfarbe, Hintergrund-/Karten-/Textfarbe, Schriften (Standard, hochgeladen oder auf dem Rechner installiert – werden an die Handys ausgeliefert), Eckenradius, Fußzeile und eigenes CSS. Änderungen erscheinen sofort auf allen Handys; rechts gibt es eine Live-Vorschau im Handyformat.
+
+## SDI-Ausgang mit ProPresenter teilen
+
+Ein DeckLink-/UltraStudio-Anschluss kann immer nur von einem Programm gleichzeitig genutzt werden. Für Rechner, auf denen parallel ProPresenter läuft (z. B. ein gemeinsamer Bühnenmonitor):
+
+1. Bei der DeckLink-Ausgabe **„Mit anderen Programmen teilen“** einschalten und übernehmen.
+2. **Manuell:** „Jetzt freigeben“ / „Zurückholen“ (Ausgänge-Tab), Menü *Ausgänge*, Tastenkürzel **⌘⌥S** / **Strg+Alt+S** oder Companion-Aktion *SDI-Ausgang teilen*.
+3. **Vorsichtige Automatik (optional):** gibt frei, wenn CueGFX die eingestellte Zeit (Standard 5 s) im Hintergrund ist, und holt den Ausgang zurück, sobald CueGFX wieder vorne ist. Mit Schutz wird nicht freigegeben, solange auf dem geteilten Ausgang etwas auf Sendung ist. Eine manuelle Freigabe bleibt bestehen, bis „Zurückholen“ gedrückt wird.
+
+Ist das Gerät beim Zurückholen noch von ProPresenter belegt, versucht CueGFX es ~1 Minute lang erneut. Beim Wechsel ist das SDI-Signal kurz unterbrochen.

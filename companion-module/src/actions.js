@@ -237,6 +237,19 @@ function buildActions(self) {
     },
 
     /* Sonstiges */
+    sdi_share: {
+      name: 'SDI-Ausgang teilen (ProPresenter): freigeben / zurückholen',
+      description: 'Gilt für DeckLink-Ausgaben mit „Mit anderen Programmen teilen“',
+      options: [
+        { type: 'dropdown', id: 'action', label: 'Aktion', default: 'toggle', choices: [{ id: 'toggle', label: 'Umschalten' }, { id: 'release', label: 'Freigeben' }, { id: 'claim', label: 'Zurückholen' }] },
+        { type: 'checkbox', id: 'force', label: 'Auch freigeben, wenn etwas auf Sendung ist', default: false }
+      ],
+      callback: async (ev) => {
+        const act = ev.options.action || 'toggle';
+        const release = act === 'release' || (act === 'toggle' && !(self.sdi && self.sdi.released));
+        await self.run(release ? 'sdi.release' : 'sdi.claim', { force: !!ev.options.force });
+      }
+    },
     theme_preset: {
       name: 'Design-Vorlage anwenden',
       options: [{ type: 'dropdown', id: 'preset', label: 'Vorlage', default: 'studio', allowCustom: true,

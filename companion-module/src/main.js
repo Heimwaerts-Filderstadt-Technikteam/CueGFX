@@ -116,6 +116,12 @@ class CueGfxInstance extends InstanceBase {
       if (p) { this.pending.delete(m.id); m.ok ? p.resolve(m.result) : p.reject(new Error(m.error)); }
       return;
     }
+    if (m.t === 'hw') {
+      const sh = (m.decklink && m.decklink.share) || null;
+      const sig = JSON.stringify(sh);
+      if (sig !== this._sdiSig) { this._sdiSig = sig; this.sdi = sh; this.pushVariables(); this.checkFeedbacks('sdi_released'); }
+      return;
+    }
     if (m.t === 'state') {
       if (m.serverTime && !this.offset) this.offset = m.serverTime - Date.now();
       this.project = m.project;
@@ -124,7 +130,7 @@ class CueGfxInstance extends InstanceBase {
       const sig = this.structureSignature();
       if (sig !== this.structureSig) { this.structureSig = sig; this.rebuildDefinitions(); }
       this.pushVariables();
-      this.checkFeedbacks('graphic_live', 'graphic_preview', 'timer_running', 'timer_below', 'any_preview', 'poll_open', 'list_index', 'score_leading', 'has_new_questions', 'qa_has_active', 'qa_setting', 'qa_pending_flagged');
+      this.checkFeedbacks('graphic_live', 'graphic_preview', 'timer_running', 'timer_below', 'any_preview', 'poll_open', 'list_index', 'score_leading', 'has_new_questions', 'qa_has_active', 'qa_setting', 'qa_pending_flagged', 'sdi_released');
     }
   }
 

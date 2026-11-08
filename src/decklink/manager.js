@@ -31,6 +31,10 @@ class DeckLinkManager {
     this.config = [];
     this.running = new Map(); // id -> { handle, win, cfg, fpsCounter }
     this.lastStatus = {};
+    // Teilen mit anderen Programmen (z. B. ProPresenter): geteilte Ausgänge freigeben/zurückholen
+    this.share = { released: false, by: '', at: 0, retry: 0 };
+    this.retryTimer = null;
+    this.onShareChange = null;
     if (this.addon) {
       try { this.version = this.addon.version(); } catch (_) { this.version = {}; }
       this.rescan();
@@ -67,8 +71,52 @@ class DeckLinkManager {
       driverVersion: this.version && this.version.driver,
       devices: this.devices.map((d) => ({ key: d.key, name: d.name, model: d.model, canOutput: d.canOutput, canInput: d.canInput, externalKeying: d.externalKeying, internalKeying: d.internalKeying, outputModes: d.outputModes.map((m) => ({ id: m.id, name: m.name, width: m.width, height: m.height, fps: m.fps })) })),
       outputs: this.config,
-      status
+      status,
+      share: { released: this.share.released, by: this.share.by, at: this.share.at, sharedCount: this.config.filter((c) => c.enabled && c.share).length, retrying: !!this.retryTimer }
     };
+  }
+
+  /* ---------- Mit anderen Programmen teilen ---------- */
+  sharedOutputs() { return this.config.filter((c) => c.enabled && c.share); }
+
+  /* Geteilte Ausgänge freigeben, damit z. B. ProPresenter sie nutzen kann */
+  release(by) {
+    if (!this.sharedOutputs().length) throw new Error('Kein DeckLink-Ausgang ist zum Teilen markiert');
+    clearTimeout(this.retryTimer); this.retryTimer = null;
+    this.share = { released: true, by: by || 'manual', at: Date.now(), retry: 0 };
+    for (const c of this.sharedOutputs()) {
+      this.stopOne(c.id);
+      this.lastStatus[c.id] = { running: false, released: true, error: '' };
+    }
+    this.log(`[DeckLink] Geteilte Ausgänge freigegeben (${by === 'auto' ? 'automatisch' : 'manuell'})`);
+    if (this.onShareChange) this.onShareChange();
+  }
+
+  /* Geteilte Ausgänge wieder belegen – ist das Gerät noch belegt, wird erneut versucht */
+  claim(by) {
+    clearTimeout(this.retryTimer); this.retryTimer = null;
+    const wasReleased = this.share.released;
+    this.share = { released: false, by: by || 'manual', at: Date.now(), retry: 0 };
+    this._claimTry();
+    if (wasReleased) this.log(`[DeckLink] Geteilte Ausgänge zurückgeholt (${by === 'auto' ? 'automatisch' : 'manuell'})`);
+    if (this.onShareChange) this.onShareChange();
+  }
+
+  _claimTry() {
+    if (this.share.released) return;
+    let failed = 0;
+    for (const c of this.sharedOutputs()) {
+      if (this.running.has(c.id)) continue;
+      try { this.startOne(c); delete this.lastStatus[c.id]; } catch (e) {
+        failed++;
+        this.lastStatus[c.id] = { running: false, error: /busy|belegt|in use|access|E_ACCESSDENIED|0x80000009/i.test(e.message) || /konnte nicht|nicht starten/i.test(e.message)
+          ? 'Gerät noch von einem anderen Programm belegt (z. B. ProPresenter) – neuer Versuch …' : e.message };
+      }
+    }
+    if (failed && this.share.retry < 40) {
+      this.share.retry++;
+      this.retryTimer = setTimeout(() => { this.retryTimer = null; this._claimTry(); if (this.onShareChange) this.onShareChange(); }, 1500);
+    }
   }
 
   device(key) { return this.devices.find((d) => d.key === key) || null; }
@@ -88,7 +136,8 @@ class DeckLinkManager {
       swapRB: !!o.swapRB,
       keyLevel: Math.max(0, Math.min(255, Number(o.keyLevel === undefined ? 255 : o.keyLevel))),
       localAudio: !!o.localAudio,
-      outputMode: o.outputMode === 'sync' ? 'sync' : 'auto'
+      outputMode: o.outputMode === 'sync' ? 'sync' : 'auto',
+      share: !!o.share
     }));
     // Gleiche Geräte doppelt? Zweite Belegung deaktivieren.
     const used = new Set();
@@ -110,6 +159,7 @@ class DeckLinkManager {
     }
     for (const c of this.config) {
       if (!c.enabled || this.running.has(c.id)) continue;
+      if (c.share && this.share.released) { this.lastStatus[c.id] = { running: false, released: true, error: '' }; continue; }
       try { this.startOne(c); delete this.lastStatus[c.id]; } catch (e) {
         this.lastStatus[c.id] = { running: false, error: e.message };
         this.log(`[DeckLink] ${c.id}: ${e.message}`);
@@ -197,7 +247,7 @@ class DeckLinkManager {
     if (r.win && !r.win.isDestroyed()) r.win.destroy();
   }
 
-  stopAll() { for (const id of [...this.running.keys()]) this.stopOne(id); }
+  stopAll() { clearTimeout(this.retryTimer); this.retryTimer = null; for (const id of [...this.running.keys()]) this.stopOne(id); }
 }
 
 module.exports = { DeckLinkManager, loadAddon };

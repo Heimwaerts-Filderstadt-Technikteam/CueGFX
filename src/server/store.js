@@ -59,6 +59,7 @@ class Store {
       ndiLibPath: '',
       chatSources: [],
       themeTemplates: [],
+      sdiShare: { auto: false, delay: 5, protect: true },
       audiencePort: 4002,
       audioOut: { enabled: true, output: '1', deviceId: '', label: '' },
       audiencePublicUrl: '',
