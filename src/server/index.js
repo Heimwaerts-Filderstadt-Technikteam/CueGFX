@@ -174,7 +174,16 @@ class CueServer extends EventEmitter {
       add(false, 'Seite laden', `HTTP ${res.status}${hint}`);
       return done();
     }
-    add(true, 'Seite laden', `HTTP ${res.status} in ${ms} ms${u.protocol === 'https:' ? ' · HTTPS-Zertifikat gültig' : ''}`);
+    // Umleitungen (z. B. NPM „Force SSL“ http → https) beachten: alle weiteren Tests gegen die Zieladresse
+    let fin = u;
+    try { if (res.url) fin = new URL(res.url); } catch (_) {}
+    if (fin.href !== new URL(base).href) {
+      const toHttps = u.protocol === 'http:' && fin.protocol === 'https:';
+      add(!toHttps, 'Umleitung', toHttps
+        ? `${u.origin} leitet auf ${fin.origin} um – Adresse besser direkt mit https:// eintragen (QR-Codes führen dann ohne Umweg zur Seite)`
+        : `Weitergeleitet auf ${fin.href}`, true);
+    }
+    add(true, 'Seite laden', `HTTP ${res.status} in ${ms} ms${fin.protocol === 'https:' ? ' · HTTPS-Zertifikat gültig' : ''}`);
     // 3. Eingabemaske dieser CueGFX-Installation?
     const isAudience = /id="ask"/.test(html) && /id="q"/.test(html) && /\/shared\/client\.js/.test(html);
     const inst = res.headers.get('x-cuegfx-instance');
@@ -184,24 +193,25 @@ class CueServer extends EventEmitter {
     else add(true, 'Eingabemaske', 'Publikumsseite mit Fragefeld dieser CueGFX-Installation geladen');
     // 4. Gestaltung erreichbar
     try {
-      const c = await fetch(u.origin + '/api/audience.css', { signal: AbortSignal.timeout(8000) });
+      const c = await fetch(fin.origin + '/api/audience.css', { signal: AbortSignal.timeout(8000) });
       add(c.ok, 'Gestaltung', c.ok ? 'Design-Datei geladen' : `Design-Datei: HTTP ${c.status}`);
     } catch (e) { add(false, 'Gestaltung', explain(e)); }
     // 5. WebSocket (Live-Updates, Fragen senden)
-    const wsUrl = (u.protocol === 'https:' ? 'wss://' : 'ws://') + u.host + '/ws?role=audience&voter=cuegfx-selbsttest';
+    const wsUrl = (fin.protocol === 'https:' ? 'wss://' : 'ws://') + fin.host + '/ws?role=audience&voter=cuegfx-selbsttest';
     const wsOk = await new Promise((resolve) => {
       if (typeof WebSocket !== 'function') return resolve('WebSocket-Test in dieser Version nicht möglich');
       let w; const t = setTimeout(() => { try { w.close(); } catch (_) {} resolve('Keine Antwort'); }, 8000);
       try { w = new WebSocket(wsUrl); } catch (e) { clearTimeout(t); return resolve(e.message); }
       w.onmessage = (ev) => { try { if (JSON.parse(ev.data).t === 'audience') { clearTimeout(t); w.close(); resolve(true); } } catch (_) {} };
-      w.onerror = () => { clearTimeout(t); resolve('Verbindung abgelehnt'); };
+      w.onerror = (ev) => { clearTimeout(t); resolve((ev && ev.message) || 'Verbindung abgelehnt'); };
+      w.onclose = (ev) => { clearTimeout(t); resolve(`Verbindung geschlossen${ev && ev.code ? ' (Code ' + ev.code + ')' : ''}`); };
     });
     if (wsOk === true) add(true, 'Live-Verbindung', 'WebSocket funktioniert – Fragen und Likes kommen live an');
     else add(false, 'Live-Verbindung', `WebSocket fehlgeschlagen (${wsOk}) – im NPM beim Proxy-Host „Websockets Support“ einschalten`);
     // 6. Weiterleitung http → https (nur Hinweis)
-    if (u.protocol === 'https:') {
+    if (fin.protocol === 'https:') {
       try {
-        const r = await fetch('http://' + u.host + '/', { redirect: 'manual', signal: AbortSignal.timeout(6000) });
+        const r = await fetch('http://' + fin.host + '/', { redirect: 'manual', signal: AbortSignal.timeout(6000) });
         const loc = r.headers.get('location') || '';
         if (r.status >= 300 && r.status < 400 && loc.startsWith('https:')) add(true, 'HTTPS erzwingen', 'http:// wird auf https:// umgeleitet');
         else add(false, 'HTTPS erzwingen', 'http:// wird nicht auf https:// umgeleitet – im NPM unter „SSL“ „Force SSL“ einschalten (optional)', true);
