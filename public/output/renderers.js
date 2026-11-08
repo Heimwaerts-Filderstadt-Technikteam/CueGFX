@@ -788,18 +788,23 @@
 
     function renderWall(c) {
       const all = visibleQs(c.project);
-      const newest = d.showNewest ? all.slice().sort((a, b) => b.ts - a.ts)[0] : null;
+      const newestAny = all.slice().sort((a, b) => b.ts - a.ts)[0] || null;
+      const newest = d.showNewest ? newestAny : null;
       let rest = sortQs(all.filter((q) => q !== newest || q.active), d.sort);
       if (d.activeFirst) { const a = rest.find((q) => q.active); if (a) rest = [a].concat(rest.filter((q) => q !== a)); }
       if (newest && newest.active) { /* aktive neueste Frage steht oben in der Liste, nicht doppelt */ }
-      const top = rest.slice(0, Math.max(1, Number(d.count) || 5));
+      let top = rest.slice(0, Math.max(1, Number(d.count) || 5));
+      // Neueste Frage muss immer zu sehen sein – auch ohne eigene Hervorhebung
+      if (!d.showNewest && newestAny && !top.includes(newestAny)) top = top.slice(0, Math.max(0, top.length - 1)).concat(newestAny);
       const showNew = newest && !top.includes(newest);
       if (!el.querySelector('.qaw-list')) {
-        el.innerHTML = '<div class="qaw-h"><span class="qaw-title"></span><span class="qaw-count"></span></div><div class="qaw-list"></div><div class="qaw-new"><div class="qaw-new-label">Neueste Frage</div><div class="qaw-item"></div></div><div class="qaw-foot"></div><div class="qaw-empty"></div>';
+        el.innerHTML = '<div class="qaw-h"><div class="qaw-ht"><span class="qaw-title"></span><span class="qaw-count"></span></div><div class="qaw-foot"></div></div><div class="qaw-list"></div><div class="qaw-new"><div class="qaw-new-label">Neueste Frage</div><div class="qaw-item"></div></div><div class="qaw-empty"></div>';
       }
       setText(el.querySelector('.qaw-title'), c.sub(d.heading));
-      el.querySelector('.qaw-h').style.display = d.heading ? '' : 'none';
-      setText(el.querySelector('.qaw-count'), all.length ? `${all.length} Frage${all.length === 1 ? '' : 'n'}` : '');
+      el.querySelector('.qaw-h').style.display = d.heading || d.showQr ? '' : 'none';
+      const cntEl = el.querySelector('.qaw-count');
+      cntEl.dataset.base = all.length ? `${all.length} Frage${all.length === 1 ? '' : 'n'}` : '';
+      setText(cntEl, cntEl.dataset.base);
       // FLIP: Positionen merken, neu ordnen, Bewegung animieren
       const box = el.querySelector('.qaw-list');
       const before = new Map([...box.children].map((n) => [n.dataset.id, n.getBoundingClientRect().top]));
@@ -809,6 +814,8 @@
         let n = box.querySelector(`[data-id="${CSS.escape(q.id)}"]`);
         if (!n) { n = document.createElement('div'); n.dataset.id = q.id; n.className = 'qaw-item enter'; requestAnimationFrame(() => requestAnimationFrame(() => n.classList.remove('enter'))); }
         n.classList.toggle('active', !!q.active);
+        // Aktive und neueste Frage werden beim Platzmangel nie ausgeblendet
+        if (q.active || (newestAny && q.id === newestAny.id)) n.dataset.protect = '1'; else delete n.dataset.protect;
         setHtml(n, itemInner(q));
         if (box.children[i] !== n) box.insertBefore(n, box.children[i] || null);
       });
@@ -826,12 +833,69 @@
       if (showNew) setHtml(nb.querySelector('.qaw-item'), itemInner(newest));
       const foot = el.querySelector('.qaw-foot');
       const url = audienceUrl(c);
-      setHtml(foot, d.showQr ? `${qrImg(url)}<div><b>Stell deine Frage</b><span>${esc(url.replace(/^https?:\/\//, ''))}</span></div>` : '');
+      setHtml(foot, d.showQr ? `<div class="qaw-qrt"><b>Stell deine Frage</b><span>${esc(url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</span></div>${qrImg(url)}` : '');
       foot.style.display = d.showQr ? '' : 'none';
       const empty = el.querySelector('.qaw-empty');
       setText(empty, all.length ? '' : c.sub(d.emptyText));
       empty.style.display = all.length ? 'none' : '';
       el.style.display = !all.length && !d.emptyText && !d.showQr ? 'none' : '';
+      fit();
+    }
+
+    /* ---------- An die verfügbare Höhe anpassen ----------
+       Überschrift, neueste Frage und QR-Code bleiben immer sichtbar. Darüber stehen nur so viele
+       weitere Fragen, wie in die Höhe passen (unter Berücksichtigung von Skalierung & Versatz).
+       Reicht es selbst dann nicht, wird die Schrift der Fragen verkleinert. */
+    function geom() {
+      const wrap = el.closest('.g-wrap');
+      if (!wrap || !el.isConnected || !wrap.clientHeight) return null;
+      const sc = Math.max(0.1, (Number(d.scale) || 100) / 100);
+      return { wrap, sc, maxH: wrap.clientHeight / sc, maxW: wrap.clientWidth / sc };
+    }
+    let fitKey = '', zoom = 1;
+    function fit() {
+      if (!d || el.style.display === 'none') return;
+      const G = geom();
+      if (!G) return;
+      // Ausgangszustand
+      zoom = 1; el.style.zoom = ''; el.style.translate = ''; el.style.setProperty('--qfit', '1');
+      el.style.width = Math.min(Number(d.width) || 1100, G.maxW) + 'px';
+      const box = el.querySelector('.qaw-list');
+      const items = box ? [...box.children] : [];
+      for (const n of items) n.style.display = '';
+      const tooBig = () => el.offsetHeight * zoom > G.maxH + 0.5;
+      // 1. Weniger Fragen: von der niedrigsten Priorität her ausblenden (aktive & neueste bleiben)
+      for (let i = items.length - 1; i >= 0 && tooBig(); i--) if (!items[i].dataset.protect) items[i].style.display = 'none';
+      // 2. Schrift der Fragen etwas verkleinern (bis 75 %)
+      let k = 1;
+      while (tooBig() && k > 0.75) { k = Math.round((k - 0.05) * 100) / 100; el.style.setProperty('--qfit', String(k)); }
+      // 3. Ganze Wand verkleinern (Titel, QR, Fragen), bis alles passt
+      // Beim Verkleinern frei werdende Breite nutzen (höchstens bis zur eingestellten Breite) → weniger Zeilen
+      const baseW = Number(d.width) || 1100;
+      while (tooBig() && zoom > 0.25) {
+        zoom = Math.round((zoom - 0.05) * 100) / 100;
+        el.style.zoom = String(zoom);
+        el.style.width = Math.min(baseW, G.maxW / zoom) + 'px';
+      }
+      const hidden = items.filter((n) => n.style.display === 'none').length;
+      const cnt = el.querySelector('.qaw-count');
+      if (cnt && cnt.dataset.base !== undefined) setText(cnt, cnt.dataset.base + (hidden ? ` · +${hidden} weitere` : ''));
+      keepOnStage(G);
+      fitKey = [G.maxH, G.maxW, d.offsetX, d.offsetY, d.position].join('|');
+    }
+    /* Versatz so begrenzen, dass die Wand vollständig im Bild bleibt */
+    function keepOnStage(G) {
+      const stage = el.ownerDocument.getElementById('stage');
+      if (!stage) return;
+      const SW = stage.offsetWidth, SH = stage.offsetHeight, wr = G.wrap;
+      const w = el.offsetWidth * zoom * G.sc, hh = el.offsetHeight * zoom * G.sc;
+      const pos = wr.dataset.pos || 'center';
+      const ox = Number(d.offsetX) || 0, oy = Number(d.offsetY) || 0;
+      const y = wr.offsetTop + (/^top/.test(pos) ? 0 : /^bottom/.test(pos) ? wr.clientHeight - hh : (wr.clientHeight - hh) / 2) + oy;
+      const x = wr.offsetLeft + (/left$/.test(pos) ? 0 : /right$/.test(pos) ? wr.clientWidth - w : (wr.clientWidth - w) / 2) + ox;
+      const cy = Math.min(Math.max(y, 0), Math.max(0, SH - hh)) - y;
+      const cx = Math.min(Math.max(x, 0), Math.max(0, SW - w)) - x;
+      el.style.translate = cx || cy ? `${cx / (G.sc * zoom)}px ${cy / (G.sc * zoom)}px` : '';
     }
 
     function pickSingle(c, now) {
@@ -850,9 +914,9 @@
 
     function renderSingle(c, now) {
       const q = pickSingle(c, now);
-      if (!el.querySelector('.qaw-one')) el.innerHTML = '<div class="qaw-h"><span class="qaw-title"></span></div><div class="qaw-one"></div><div class="qaw-foot"></div>';
+      if (!el.querySelector('.qaw-one')) el.innerHTML = '<div class="qaw-h"><div class="qaw-ht"><span class="qaw-title"></span></div><div class="qaw-foot"></div></div><div class="qaw-one"></div>';
       setText(el.querySelector('.qaw-title'), c.sub(d.heading));
-      el.querySelector('.qaw-h').style.display = d.heading ? '' : 'none';
+      el.querySelector('.qaw-h').style.display = d.heading || d.showQr ? '' : 'none';
       const one = el.querySelector('.qaw-one');
       const key = q ? q.id + '|' + q.text + '|' + q.likes + '|' + q.active : 'empty';
       if (one._key !== key) {
@@ -861,16 +925,18 @@
         const html = q ? `<div class="qaw-item qaw-big${q.active ? ' active' : ''}">${itemInner(q)}</div>` : `<div class="qaw-empty">${esc(c.sub(d.emptyText))}</div>`;
         if (changedQ && one.innerHTML) {
           one.classList.add('swap');
-          setTimeout(() => { one.innerHTML = html; one.classList.remove('swap'); }, 300);
+          setTimeout(() => { one.innerHTML = html; one.classList.remove('swap'); fit(); }, 300);
         } else one.innerHTML = html;
       }
       const foot = el.querySelector('.qaw-foot');
       const url = audienceUrl(c);
-      setHtml(foot, d.showQr ? `${qrImg(url)}<div><b>Stell deine Frage</b><span>${esc(url.replace(/^https?:\/\//, ''))}</span></div>` : '');
+      setHtml(foot, d.showQr ? `<div class="qaw-qrt"><b>Stell deine Frage</b><span>${esc(url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</span></div>${qrImg(url)}` : '');
       foot.style.display = d.showQr ? '' : 'none';
       el.style.display = !q && !d.emptyText && !d.showQr ? 'none' : '';
+      fit();
     }
 
+    let lastFitCheck = 0;
     return {
       el, needsTick: true,
       depKey: (g, project) => JSON.stringify(visibleQs(project).map((q) => [q.id, q.text, q.author, q.likes, q.active, q.ts])),
@@ -878,11 +944,19 @@
         d = g.data; ctx = c;
         if (g.shownAt !== shownAt) { shownAt = g.shownAt || c.now(); lastRot = -1; }
         el.className = 'qaw mode-' + d.mode;
-        el.style.width = (Number(d.width) || 1100) + 'px';
         if (el.dataset.mode !== d.mode) { el.dataset.mode = d.mode; el.innerHTML = ''; }
         if (d.mode === 'single') renderSingle(c, c.now()); else renderWall(c);
       },
       tick(now) {
+        // Regelmäßig nachmessen (Schriften geladen, Fenster/Skalierung geändert)
+        if (d && now - lastFitCheck > 400) {
+          lastFitCheck = now;
+          const G = geom();
+          if (G) {
+            const key = [G.maxH, G.maxW, d.offsetX, d.offsetY, d.position].join('|');
+            if (key !== fitKey || el.offsetHeight * zoom > G.maxH + 0.5) fit();
+          }
+        }
         if (!d || d.mode !== 'single' || d.singleSource !== 'rotate' || !ctx) return;
         const r = Math.floor((now - shownAt) / (Math.max(2, Number(d.rotateSeconds) || 8) * 1000));
         if (r !== lastRot) { lastRot = r; renderSingle(ctx, now); }

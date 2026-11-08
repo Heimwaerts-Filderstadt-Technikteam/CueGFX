@@ -323,7 +323,7 @@
     fields: [
       { key: 'mode', label: 'Darstellung', type: 'select', options: [['wall', 'Liste: mehrere Fragen + neueste'], ['single', 'Einzeln: eine Frage']], default: 'wall' },
       { key: 'heading', label: 'Überschrift', type: 'text', default: 'Fragen aus dem Publikum' },
-      { key: 'count', label: 'Anzahl Fragen in der Liste', type: 'number', default: 5, min: 1, max: 15, showIf: { mode: 'wall' } },
+      { key: 'count', label: 'Max. Fragen in der Liste (passt sich automatisch der Höhe an)', type: 'number', default: 5, min: 1, max: 15, showIf: { mode: 'wall' } },
       { key: 'sort', label: 'Sortierung', type: 'select', options: [['likes', 'Beliebteste zuerst'], ['newest', 'Neueste zuerst'], ['oldest', 'Älteste zuerst']], default: 'likes' },
       { key: 'activeFirst', label: 'Aktive Frage oben anheften', type: 'toggle', default: true, showIf: { mode: 'wall' } },
       { key: 'showNewest', label: 'Neueste Frage separat hervorheben', type: 'toggle', default: true, showIf: { mode: 'wall' } },
