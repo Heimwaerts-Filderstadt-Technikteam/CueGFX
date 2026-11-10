@@ -1,6 +1,6 @@
 'use strict';
 /* Aktionen */
-const { TIMER_TYPES, oldestPending, TEAM_CHOICES } = require('./variables');
+const { TIMER_TYPES, oldestPending, TEAM_CHOICES, FRAME_FX } = require('./variables');
 
 function choices(self) {
   const g = self.graphics().map((x) => ({ id: x.id, label: `${x.name} (${x.type})` }));
@@ -170,6 +170,14 @@ function buildActions(self) {
       callback: async (ev, ctx) => { const id = await resolveId(self, ctx, ev.options.graphic); if (id) await self.run('board.set', { id, entry: await parse(self, ctx, ev.options.entry), value: await parse(self, ctx, ev.options.value) }); }
     },
     board_reset: { name: 'Rangliste: alle auf 0', options: [graphicOpt(self, ['leaderboard'], 'Rangliste')], callback: forGraphic('board.reset') },
+
+    /* Kamerarahmen */
+    frame_fx: {
+      name: 'Kamerarahmen: Effekt auslösen',
+      options: [graphicOpt(self, ['camframe'], 'Kamerarahmen'),
+        { type: 'dropdown', id: 'fx', label: 'Effekt', default: 'explode', choices: FRAME_FX.map(([id, label]) => ({ id, label })) }],
+      callback: async (ev, ctx) => { const id = await resolveId(self, ctx, ev.options.graphic); if (id) await self.run('frame.fx', { id, fx: ev.options.fx }); }
+    },
 
     /* Webseite */
     web_reload: { name: 'Webseite: neu laden', options: [graphicOpt(self, ['webpage'], 'Webseite')], callback: forGraphic('web.reload') },

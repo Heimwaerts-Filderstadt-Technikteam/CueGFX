@@ -769,6 +769,17 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
         return done();
       }
 
+      /* Kamerarahmen: Effekt auslösen */
+      case 'frame.fx': {
+        const g = this.findGraphic(a.id); const d = g.data;
+        const kind = String(a.fx || a.effect || '').toLowerCase();
+        if (!Types.FRAME_FX.some(([k]) => k === kind)) throw new HttpError(400, `Unbekannter Effekt: ${kind || '(leer)'} – möglich: ${Types.FRAME_FX.map(([k]) => k).join(', ')}`);
+        if (kind === 'damage') d.hp = Math.max(0, (Number(d.hp) || 0) - (a.amount !== undefined ? Number(a.amount) || 0 : 10));
+        if (kind === 'heal') d.hp = a.amount !== undefined ? Math.min(100, (Number(d.hp) || 0) + (Number(a.amount) || 0)) : 100;
+        d.fx = { kind, id: uid(6), at: now, amount: kind === 'damage' ? (a.amount !== undefined ? Number(a.amount) || 0 : 10) : undefined };
+        return done({ fx: kind, hp: d.hp });
+      }
+
       /* Webseite */
       case 'web.reload': { const g = this.findGraphic(a.id); g.data.reloadKey = (Number(g.data.reloadKey) || 0) + 1; return done(); }
 
@@ -1183,7 +1194,7 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
         show: 'graphic.show', hide: 'graphic.hide', toggle: 'graphic.toggle', preview: 'graphic.preview',
         'timer-start': 'timer.start', 'timer-pause': 'timer.pause', 'timer-toggle': 'timer.toggle', 'timer-reset': 'timer.reset',
         'timer-set': 'timer.set', 'timer-add': 'timer.add', score: 'score.add', 'score-set': 'score.set', 'score-reset': 'score.reset', 'team-add': 'score.team.add', 'team-remove': 'score.team.remove',
-        spin: 'wheel.spin', 'wheel-refill': 'wheel.refill', 'wheel-hide': 'wheel.hideResult', board: 'board.add', 'board-set': 'board.set', 'board-reset': 'board.reset', 'board-entry': 'board.entry.add', reload: 'web.reload',
+        spin: 'wheel.spin', 'wheel-refill': 'wheel.refill', 'wheel-hide': 'wheel.hideResult', board: 'board.add', 'board-set': 'board.set', 'board-reset': 'board.reset', 'board-entry': 'board.entry.add', reload: 'web.reload', fx: 'frame.fx',
         next: 'step', prev: 'step', goto: 'step.goto', duplicate: 'graphic.duplicate'
       };
       if (action === 'update') {

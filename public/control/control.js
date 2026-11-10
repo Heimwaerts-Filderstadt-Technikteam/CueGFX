@@ -132,6 +132,7 @@
       const w = g.data.wheel || {};
       box.append(h('button', { class: 'btn xs', onclick: () => run('wheel.spin', { id: g.id }) }, '🎡 Drehen'), h('span', { class: 'tv' }, w.spinning ? '…' : (w.result || '')));
     }
+    if (g.type === 'camframe') for (const [k, label] of T.FRAME_FX.slice(0, 4)) box.append(h('button', { class: 'btn xs', title: label, onclick: () => run('frame.fx', { id: g.id, fx: k }) }, label.split(' ')[0]));
     if (g.type === 'webpage') box.append(h('button', { class: 'btn xs', title: 'Neu laden', onclick: () => run('web.reload', { id: g.id }) }, '⟳'));
     if ((t.controls || []).includes('step')) {
       const n = g.type === 'lyrics' ? String(g.data.text || '').split(/\n\s*\n/).filter((s) => s.trim()).length : (g.data.items || []).length;
@@ -279,6 +280,7 @@
       if (ctrls.includes('wheel')) body.appendChild(wheelPanel(g));
       if (ctrls.includes('board')) body.appendChild(boardPanel(g));
       if (ctrls.includes('web')) body.appendChild(webPanel(g));
+      if (ctrls.includes('frame')) body.appendChild(framePanel(g));
       ed.appendChild(group('Steuerung', body));
     }
 
@@ -511,6 +513,16 @@
       h('div', { class: 'row' },
         h('button', { class: 'btn sm', onclick: async () => { const n = await UI.prompt('Eintrag hinzufügen', '', 'Name'); if (n !== null && n !== undefined) run('board.entry.add', { id: g.id, name: n }); } }, '+ Eintrag'),
         h('button', { class: 'btn sm', onclick: async () => { if (await UI.confirm('Alle Punkte auf 0?', 'Die Punkte aller Einträge werden zurückgesetzt.', 'Zurücksetzen')) run('board.reset', { id: g.id }); } }, 'Alle auf 0')));
+  }
+
+  /* ---------- Kamerarahmen ---------- */
+  function framePanel(g) {
+    const hp = h('span', { class: 'hint' });
+    editorExtras.push(() => { const gg = graphic(g.id); if (!gg) return; hp.textContent = gg.data.showBars ? `Leben ${gg.data.hp} % · Energie ${gg.data.mp} %` : ''; });
+    return h('div', { class: 'ctrlbar fxbar' },
+      ...T.FRAME_FX.map(([k, label]) => h('button', { class: 'btn', onclick: () => run('frame.fx', { id: g.id, fx: k }) }, label)),
+      hp,
+      h('span', { class: 'hint', style: { flexBasis: '100%' } }, 'Effekte laufen nur, während der Rahmen eingeblendet ist. „Treffer“ zieht 10 % Leben ab, „Heilen“ füllt wieder auf. Den Rahmen unter „Kamerabereich“ auf das Kamerabild ausrichten.'));
   }
 
   /* ---------- Webseite ---------- */

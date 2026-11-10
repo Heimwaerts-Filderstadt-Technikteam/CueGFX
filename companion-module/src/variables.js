@@ -36,6 +36,7 @@ function boardSorted(d) {
   else if (d.sort === 'asc') rows.sort((a, b) => a.score - b.score || a.i - b.i);
   return rows;
 }
+const FRAME_FX = [['explode', '💥 Explosion'], ['arrows', '🏹 Pfeile'], ['teleport', '🌀 Teleport'], ['damage', '💢 Treffer'], ['heal', '💚 Heilen'], ['levelup', '⭐ Level Up'], ['coins', '🪙 Münzen'], ['hearts', '❤️ Herzen']];
 const TEAM_CHOICES = 'abcdefgh'.split('').map((k) => ({ id: k, label: 'Team ' + k.toUpperCase() + (k === 'a' ? ' (Heim)' : k === 'b' ? ' (Gast)' : '') }));
 
 function timerMs(t, now) {
@@ -109,6 +110,7 @@ function buildVariables(self) {
       if (g.type === 'wheel') {
         defs.push({ variableId: `g_${k}_result`, name: `${g.name}: letztes Ergebnis` }, { variableId: `g_${k}_spinning`, name: `${g.name}: dreht sich (true/false)` }, { variableId: `g_${k}_spins`, name: `${g.name}: Anzahl Drehungen` });
       }
+      if (g.type === 'camframe') defs.push({ variableId: `g_${k}_hp`, name: `${g.name}: Leben %` });
       if (g.type === 'leaderboard') {
         for (const n of [1, 2, 3]) defs.push({ variableId: `g_${k}_top${n}_name`, name: `${g.name}: Platz ${n} Name` }, { variableId: `g_${k}_top${n}_score`, name: `${g.name}: Platz ${n} Punkte` });
       }
@@ -178,6 +180,7 @@ function computeVariables(self) {
       v[`g_${k}_spinning`] = String(spinning);
       v[`g_${k}_spins`] = String((w.history || []).length);
     }
+    if (g.type === 'camframe') v[`g_${k}_hp`] = String(Number(g.data.hp) || 0);
     if (g.type === 'leaderboard') {
       const rows = boardSorted(g.data);
       for (const n of [1, 2, 3]) { const r = rows[n - 1]; v[`g_${k}_top${n}_name`] = r ? String(r.name || '') : ''; v[`g_${k}_top${n}_score`] = r ? String(Number(r.score) || 0) : ''; }
@@ -196,4 +199,4 @@ function computeVariables(self) {
   return v;
 }
 
-module.exports = { oldestPending, buildVariables, computeVariables, graphicKeys, slug, timerMs, TIMER_TYPES, scoreTeams, TEAM_CHOICES };
+module.exports = { oldestPending, buildVariables, computeVariables, graphicKeys, slug, timerMs, TIMER_TYPES, scoreTeams, TEAM_CHOICES, FRAME_FX };

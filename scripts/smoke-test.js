@@ -102,6 +102,15 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
   await get(`/api/graphics/${webId}/reload`); await get(`/api/graphics/${webId}/reload`);
   ok(server.project.graphics.find((g) => g.id === webId).data.reloadKey === 2, 'Webseite: neu laden');
 
+  // Kamerarahmen
+  const cfId = (await cmd('graphic.add', { type: 'camframe', data: { showBars: true } })).body.result.id;
+  const cfd = () => server.project.graphics.find((g) => g.id === cfId).data;
+  await get(`/api/graphics/${cfId}/fx?fx=damage`); await cmd('frame.fx', { id: cfId, fx: 'damage', amount: 25 });
+  const hp1 = cfd().hp; const fx1 = cfd().fx.id;
+  await cmd('frame.fx', { id: cfId, fx: 'heal' });
+  ok(hp1 === 65 && cfd().hp === 100 && cfd().fx.kind === 'heal' && cfd().fx.id !== fx1, 'Kamerarahmen: Effekte, Treffer/Heilen ändern Leben');
+  ok((await cmd('frame.fx', { id: cfId, fx: 'quatsch' })).status === 400, 'Kamerarahmen: unbekannter Effekt abgewiesen');
+
   const lyId = (await cmd('graphic.add', { type: 'lyrics' })).body.result.id;
   await get(`/api/graphics/${lyId}/next`);
   await get(`/api/graphics/${lyId}/next`);
@@ -131,7 +140,7 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
   fs.rmSync(path.join(dir, 'media', up.body.name));
   const imp = await get('/api/import?name=Importiert', { method: 'POST', body: exp.body });
   ok(imp.body.ok && imp.body.media === 1, 'Import inkl. Mediendatei');
-  ok(server.project.name === 'Importiert' && server.project.graphics.length === list.length + 7, 'Importiertes Projekt ist aktiv und vollständig');
+  ok(server.project.name === 'Importiert' && server.project.graphics.length === list.length + 8, 'Importiertes Projekt ist aktiv und vollständig');
   ok(fs.existsSync(path.join(dir, 'media', up.body.name)), 'Mediendatei wiederhergestellt');
 
   if (typeof WebSocket === 'function') {

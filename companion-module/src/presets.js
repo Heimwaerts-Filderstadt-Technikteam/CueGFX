@@ -1,7 +1,7 @@
 'use strict';
 /* Fertige Tasten (Presets) – werden für jede Grafik des aktiven Projekts automatisch erzeugt */
 const { combineRgb } = require('@companion-module/base');
-const { graphicKeys, slug, TIMER_TYPES, scoreTeams } = require('./variables');
+const { graphicKeys, slug, TIMER_TYPES, scoreTeams, FRAME_FX } = require('./variables');
 const { RED, GREEN, WHITE, BLACK, AMBER } = require('./feedbacks');
 
 const DARK = combineRgb(30, 34, 42), DARK_RED = combineRgb(80, 20, 30), DARK_GREEN = combineRgb(18, 60, 38);
@@ -63,6 +63,9 @@ function buildPresets(self) {
     }
     if (g.type === 'wheel') {
       P[`spin_${g.id}`] = btn('Glücksrad', `${g.name} – Drehen`, `🎡\\n${v(`g_${k}_result`)}`, [['wheel_spin', opt]], [['wheel_spinning', opt, { bgcolor: AMBER, color: BLACK }]], { style: { size: 14 } });
+    }
+    if (g.type === 'camframe') {
+      for (const [fx, label] of FRAME_FX) P[`fx_${fx}_${g.id}`] = btn('Kamerarahmen', `${g.name} – ${label.replace(/^\S+\s/, '')}`, label.replace(' ', '\\n'), [['frame_fx', Object.assign({ fx }, opt)]], [], { style: { size: 14 } });
     }
     if (g.type === 'webpage') {
       P[`reload_${g.id}`] = btn('Webseite', `${g.name} – Neu laden`, `⟳\\n${name}`, [['web_reload', opt]]);

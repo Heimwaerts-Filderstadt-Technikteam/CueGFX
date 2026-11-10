@@ -427,6 +427,30 @@
     ]
   });
 
+  def('camframe', {
+    label: 'Kamerarahmen (Spiele-Look)', icon: '🎮', category: 'Effekte', pro: true, fullscreen: true,
+    controls: ['frame'],
+    fields: [
+      { key: 'style', label: 'Look', type: 'select', options: [['blocks', 'Pixel-Blöcke'], ['arcade', 'Retro-Arcade'], ['cyber', 'Neon-Cyber'], ['rpg', 'Fantasy-Rollenspiel'], ['scifi', 'Sci-Fi-HUD'], ['racing', 'Rennstrecke']], default: 'blocks' },
+      { key: 'material', label: 'Blöcke', type: 'select', options: [['stone', 'Stein'], ['wood', 'Holz'], ['grass', 'Wiese'], ['gold', 'Gold'], ['ice', 'Eis'], ['lava', 'Lava'], ['crystal', 'Kristall']], default: 'stone', showIf: { style: 'blocks' } },
+      { key: 'color', label: 'Akzentfarbe (leer = passend zum Look)', type: 'color', default: '' },
+      { key: 'x', label: 'Kamerabereich X (px)', type: 'number', default: 1260, min: -200, max: 1920, group: 'Kamerabereich' },
+      { key: 'y', label: 'Kamerabereich Y (px)', type: 'number', default: 600, min: -200, max: 1080, group: 'Kamerabereich' },
+      { key: 'w', label: 'Breite (px)', type: 'number', default: 600, min: 40, max: 1920, group: 'Kamerabereich' },
+      { key: 'h', label: 'Höhe (px)', type: 'number', default: 400, min: 40, max: 1080, group: 'Kamerabereich' },
+      { key: 'thickness', label: 'Rahmenstärke (px)', type: 'number', default: 28, min: 6, max: 120, group: 'Kamerabereich' },
+      { key: 'showArea', label: 'Kamerabereich einfärben (nur zum Ausrichten)', type: 'toggle', default: false, group: 'Kamerabereich' },
+      { key: 'label', label: 'Namensschild', type: 'text', default: 'PLAYER 1' },
+      { key: 'labelPos', label: 'Namensschild-Position', type: 'select', options: [['top-left', 'Oben links'], ['top-center', 'Oben Mitte'], ['bottom-left', 'Unten links'], ['bottom-center', 'Unten Mitte'], ['none', 'Ausblenden']], default: 'top-left' },
+      { key: 'showBars', label: 'Lebens- und Energieleiste', type: 'toggle', default: false },
+      { key: 'hp', label: 'Leben %', type: 'number', default: 100, min: 0, max: 100, showIf: { showBars: true } },
+      { key: 'mp', label: 'Energie %', type: 'number', default: 70, min: 0, max: 100, showIf: { showBars: true } },
+      { key: 'ambient', label: 'Dauer-Animation', type: 'toggle', default: true },
+      { key: 'fxScale', label: 'Effekt-Stärke %', type: 'number', default: 100, min: 20, max: 300, step: 10 },
+      { key: 'sound', label: 'Effekt-Geräusche (wenn der Ausgang Ton hat)', type: 'toggle', default: true }
+    ]
+  });
+
   def('custom', {
     label: 'Eigene Grafik (Builder)', icon: '✏', category: 'Builder', pro: true, fullscreen: true,
     fields: [
@@ -538,5 +562,7 @@
     return rows;
   }
 
-  return { TYPES: T, scoreTeams, teamIndex, TEAM_COLORS, wheelEntries, boardRows, CATEGORIES, POSITIONS, ANIMATIONS, allFields, defaults, timerElapsed, timerValueMs, formatDuration, formatCountUp, THEME_PRESETS, defaultTimer };
+  const FRAME_FX = [['explode', '💥 Explosion'], ['arrows', '🏹 Pfeile'], ['teleport', '🌀 Teleport'], ['damage', '💢 Treffer'], ['heal', '💚 Heilen'], ['levelup', '⭐ Level Up'], ['coins', '🪙 Münzen'], ['hearts', '❤️ Herzen']];
+
+  return { TYPES: T, FRAME_FX, scoreTeams, teamIndex, TEAM_COLORS, wheelEntries, boardRows, CATEGORIES, POSITIONS, ANIMATIONS, allFields, defaults, timerElapsed, timerValueMs, formatDuration, formatCountUp, THEME_PRESETS, defaultTimer };
 });
