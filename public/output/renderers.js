@@ -417,6 +417,93 @@
     };
   };
 
+  /* ---------------- Rolltext (Zufallsziehung) ---------------- */
+  R.slot = () => {
+    const el = div('sl', '<div class="sl-title"></div><div class="sl-win"><div class="sl-strip"></div></div><div class="sl-res"></div><canvas class="sl-fx"></canvas>');
+    const titleEl = el.querySelector('.sl-title'), win = el.querySelector('.sl-win'), strip = el.querySelector('.sl-strip'), resEl = el.querySelector('.sl-res');
+    const fx = el.querySelector('.sl-fx'), fxc = fx.getContext('2d');
+    let d = null, ctxRef = null, key = '', rowH = 120, n = 0, lastIdx = -1, ac = null, parts = [], lastT = 0, burstFor = '', wonFor = '';
+    // Auslaufen mit leichtem Nachfedern
+    const ease = (p) => { const c1 = 0.9, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); };
+    const beep = (f, dur, vol, type) => {
+      if (!d || !d.sound || !ctxRef || !ctxRef.audio) return;
+      try {
+        ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+        const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
+        o.type = type || 'square'; o.frequency.setValueAtTime(f, t); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + dur + 0.02);
+      } catch (_) {}
+    };
+    const burst = () => {
+      const cs = getComputedStyle(document.documentElement);
+      const cols = ['--primary', '--accent'].map((v) => cs.getPropertyValue(v).trim()).filter(Boolean).concat(['#ffd166', '#ffffff', '#06d6a0', '#118ab2']);
+      for (let i = 0; i < 140; i++) {
+        const a = rnd2(-Math.PI, 0), v = rnd2(300, 1000);
+        parts.push({ x: fx.width / 2 + rnd2(-fx.width * 0.25, fx.width * 0.25), y: fx.height / 2, vx: Math.cos(a) * v * 0.8, vy: Math.sin(a) * v, w: rnd2(8, 16), h: rnd2(5, 10), r: rnd2(0, 6), vr: rnd2(-10, 10), col: cols[(Math.random() * cols.length) | 0], life: 1 });
+      }
+    };
+    function rnd2(a, b) { return a + Math.random() * (b - a); }
+    return {
+      el, needsTick: true,
+      update(g, c) {
+        d = g.data; ctxRef = c;
+        const st = d.slot || {};
+        const fs = Math.max(20, Math.min(300, Number(d.fontSize) || 84));
+        rowH = Math.round(fs * 1.35);
+        el.className = `sl sl-${d.style || 'box'}`;
+        el.style.setProperty('--slw', (Number(d.width) || 900) + 'px');
+        el.style.setProperty('--slfs', fs + 'px');
+        el.style.setProperty('--slrh', rowH + 'px');
+        setText(titleEl, c.sub(d.title || '')); titleEl.style.display = d.title ? '' : 'none';
+        const items = Array.isArray(st.strip) && st.strip.length ? st.strip : [st.result || '?'];
+        const k = JSON.stringify([items, st.spinId]);
+        if (k !== key) {
+          key = k; n = items.length; lastIdx = -1;
+          strip.innerHTML = items.map((v) => `<div class="sl-item">${esc(v)}</div>`).join('');
+        }
+        fx.width = Math.round((Number(d.width) || 900) * 1.4); fx.height = Math.round(rowH * 5);
+      },
+      tick(now) {
+        if (!d) return;
+        const st = d.slot || {};
+        let pos = n - 1, speed = 0;
+        if (st.spinning) {
+          const p = Math.max(0, Math.min(1, (now - st.startedAt) / (st.duration || 1)));
+          pos = (n - 1) * ease(p);
+          const p2 = Math.min(1, p + 0.01);
+          speed = Math.abs((n - 1) * (ease(p2) - ease(p))) * 100 / ((st.duration || 1000) / 1000);
+          if (now < st.startedAt) pos = 0;
+        } else if (!st.result && !(st.strip && st.strip.length)) pos = 0;
+        strip.style.transform = `translateY(${(-pos * rowH).toFixed(1)}px)`;
+        strip.style.filter = speed > 6 ? `blur(${Math.min(6, speed / 6).toFixed(1)}px)` : '';
+        const idx = Math.round(pos);
+        if (st.spinning && idx !== lastIdx) { if (lastIdx !== -1) beep(900 + Math.random() * 200, 0.03, 0.08); lastIdx = idx; }
+        // Ergebnis hervorheben
+        const won = !st.spinning && st.result && st.spinId ? st.spinId : '';
+        if (won !== wonFor) {
+          wonFor = won;
+          el.classList.toggle('won', !!won);
+          setText(resEl, won && d.resultLabel ? (ctxRef ? ctxRef.sub(d.resultLabel) : d.resultLabel) : '');
+          resEl.style.display = won && d.resultLabel ? '' : 'none';
+          if (won && now - st.resultAt < 3000) { [784, 988, 1319].forEach((f, i) => setTimeout(() => beep(f, 0.22, 0.12, 'triangle'), i * 110)); }
+        }
+        if (won && d.confetti !== false && burstFor !== won && now - st.resultAt < 3000) { burstFor = won; burst(); }
+        if (parts.length) {
+          const dt = lastT ? Math.min(0.05, (now - lastT) / 1000) : 0.016;
+          fxc.clearRect(0, 0, fx.width, fx.height);
+          parts = parts.filter((q) => {
+            q.vy += 1100 * dt; q.vx *= 0.99; q.x += q.vx * dt; q.y += q.vy * dt; q.r += q.vr * dt; q.life -= dt * 0.5;
+            fxc.save(); fxc.globalAlpha = Math.max(0, Math.min(1, q.life * 1.5)); fxc.translate(q.x, q.y); fxc.rotate(q.r); fxc.fillStyle = q.col; fxc.fillRect(-q.w / 2, -q.h / 2, q.w, q.h); fxc.restore();
+            return q.life > 0 && q.y < fx.height + 30;
+          });
+          if (!parts.length) fxc.clearRect(0, 0, fx.width, fx.height);
+        }
+        lastT = now;
+      },
+      destroy() { try { ac && ac.close(); } catch (_) {} }
+    };
+  };
+
   /* ---------------- Rangliste ---------------- */
   R.leaderboard = () => {
     const el = div('lb', '<div class="lb-head"><div class="lb-title"></div><div class="lb-sub"></div></div><div class="lb-list"></div>');

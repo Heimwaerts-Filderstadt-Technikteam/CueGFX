@@ -67,6 +67,9 @@ function buildPresets(self) {
     if (g.type === 'camframe') {
       for (const [fx, label] of FRAME_FX) P[`fx_${fx}_${g.id}`] = btn('Kamerarahmen', `${g.name} – ${label.replace(/^\S+\s/, '')}`, label.replace(' ', '\\n'), [['frame_fx', Object.assign({ fx }, opt)]], [], { style: { size: 14 } });
     }
+    if (g.type === 'slot') {
+      P[`roll_${g.id}`] = btn('Rolltext', `${g.name} – Ziehen`, `🎰 ${v(`g_${k}_left`)}\\n${v(`g_${k}_result`)}`, [['slot_spin', opt]], [['slot_empty', opt, { bgcolor: RED, color: WHITE }]], { style: { size: 14 } });
+    }
     if (g.type === 'webpage') {
       P[`reload_${g.id}`] = btn('Webseite', `${g.name} – Neu laden`, `⟳\\n${name}`, [['web_reload', opt]]);
     }

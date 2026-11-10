@@ -385,3 +385,7 @@ a.btn { text-decoration: none; color: inherit; display: inline-block; }
 .fb-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px 10px; }
 .fb-fields .field.full { grid-column: 1 / -1; }
 @media (max-width: 1100px) { .fb-top { grid-template-columns: 1fr; } }
+
+.sl-drawn { display: flex; flex-wrap: wrap; gap: 4px; }
+.sl-drawn span { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); }
+.sl-drawn span.used { opacity: .4; text-decoration: line-through; }

@@ -37,6 +37,10 @@ function buildFeedbacks(self) {
       type: 'boolean', name: 'Glücksrad dreht sich', defaultStyle: { bgcolor: AMBER, color: BLACK },
       options: [gopt(['wheel'])], callback: (fb) => { const g = find(fb); const w = g && g.data.wheel; return !!(w && w.spinning && self.now() < (w.startedAt || 0) + (w.duration || 0) + 1000); }
     },
+    slot_empty: {
+      type: 'boolean', name: 'Rolltext: alle Werte gezogen', defaultStyle: { bgcolor: RED, color: WHITE },
+      options: [gopt(['slot'])], callback: (fb) => { const g = find(fb); if (!g || g.data.autoRefill) return false; const all = String(g.data.entries || '').split('\n').map((x) => x.trim()).filter(Boolean); return all.length > 0 && ((g.data.slot && g.data.slot.drawn) || []).length >= all.length; }
+    },
     timer_below: {
       type: 'boolean', name: 'Timer unter Schwelle', description: 'Countdown hat die angegebene Restzeit erreicht oder ist abgelaufen',
       defaultStyle: { bgcolor: AMBER, color: BLACK },

@@ -75,7 +75,10 @@ class CueServer extends EventEmitter {
         this.http.off('error', reject);
         this._restartSheets();
         this._restoreAutoHide();
-        for (const g of this.project.graphics) if (g.type === 'wheel' && g.data.wheel && g.data.wheel.spinning) this._wheelSchedule(g);
+        for (const g of this.project.graphics) {
+          if (g.type === 'wheel' && g.data.wheel && g.data.wheel.spinning) this._wheelSchedule(g);
+          if (g.type === 'slot' && g.data.slot && g.data.slot.spinning) this._spinSchedule(g, 'slot', 'slot.finish');
+        }
         this.hwTimer = setInterval(() => this._pushHardware(), 1000);
         this.chat.init();
         this._startPublic();
@@ -565,15 +568,16 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
     return 0;
   }
 
-  /* Glücksrad: Ergebnis festhalten, wenn die Drehung vorbei ist */
-  _wheelSchedule(g) {
+  /* Glücksrad / Rolltext: Ergebnis festhalten, wenn die Animation vorbei ist */
+  _wheelSchedule(g) { this._spinSchedule(g, 'wheel', 'wheel.finish'); }
+  _spinSchedule(g, key, finishCmd) {
     this.wheelTimers = this.wheelTimers || new Map();
     clearTimeout(this.wheelTimers.get(g.id));
-    const w = g.data.wheel;
+    const w = g.data[key];
     const ms = Math.max(0, w.startedAt + w.duration - Date.now());
     this.wheelTimers.set(g.id, setTimeout(() => {
       this.wheelTimers.delete(g.id);
-      try { this.exec('wheel.finish', { id: g.id, spinId: w.spinId }); } catch (_) {}
+      try { this.exec(finishCmd, { id: g.id, spinId: w.spinId }); } catch (_) {}
     }, ms));
   }
 
@@ -747,6 +751,44 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
       case 'wheel.hideResult': { const g = this.findGraphic(a.id); if (g.data.wheel) g.data.wheel.resultHidden = true; return done(); }
       case 'wheel.refill': { const g = this.findGraphic(a.id); if (g.data.wheel) g.data.wheel.excluded = []; return done(); }
       case 'wheel.history.clear': { const g = this.findGraphic(a.id); if (g.data.wheel) g.data.wheel.history = []; return done(); }
+
+      /* Rolltext: zufälliger Wert, jeder nur einmal */
+      case 'slot.spin': {
+        const g = this.findGraphic(a.id); const d = g.data;
+        const st = d.slot = Object.assign({ drawn: [], history: [] }, d.slot || {});
+        if (st.spinning && now < st.startedAt + st.duration + 500) throw new HttpError(409, 'Es rollt noch');
+        let { all, left } = Types.slotLeft(d);
+        if (!all.length) throw new HttpError(400, 'Keine Werte eingetragen');
+        if (!left.length) {
+          if (!d.autoRefill) throw new HttpError(409, 'Alle Werte wurden schon gezogen – bitte zurücksetzen');
+          st.drawn = []; left = Types.slotLeft(d).left;
+          if (left.length > 1 && st.result) left = left.filter((x) => x !== st.result); // nicht direkt denselben Wert nochmal
+        }
+        const rnd = require('crypto').randomInt;
+        const target = left[rnd(left.length)];
+        // Walze: zufällige Folge aus allen Werten, endet auf dem Ergebnis
+        const secs = Math.max(1, Math.min(20, Number(d.spinSeconds) || 4));
+        const n = Math.max(12, Math.min(80, Math.round(secs * 9)));
+        const strip = [st.result || all[rnd(all.length)]];
+        for (let i = 1; i < n; i++) { let v; do { v = all[rnd(all.length)]; } while (all.length > 1 && v === strip[i - 1]); strip.push(v); }
+        if (all.length > 1 && strip[n - 1] === target) strip[n - 1] = all.find((x) => x !== target);
+        strip.push(target);
+        Object.assign(st, { spinId: uid(6), strip, target, startedAt: now + 200, duration: secs * 1000, spinning: true, result: '', resultAt: 0 });
+        this._spinSchedule(g, 'slot', 'slot.finish');
+        return done({ spinning: true, spinId: st.spinId, ms: st.duration + 200, left: left.length - 1 });
+      }
+      case 'slot.finish': {
+        const g = this.findGraphic(a.id); const d = g.data; const st = d.slot;
+        if (!st || !st.spinning || (a.spinId && a.spinId !== st.spinId)) return false;
+        Object.assign(st, { spinning: false, result: st.target, resultAt: now });
+        st.drawn = (st.drawn || []).concat([st.target]);
+        st.history = [{ label: st.target, ts: now }].concat(st.history || []).slice(0, 500);
+        const vn = cleanVarName(d.resultVar || '');
+        if (d.resultVar && vn) p.variables.text[vn] = st.target;
+        return done({ result: st.target });
+      }
+      case 'slot.reset': { const g = this.findGraphic(a.id); const st = g.data.slot; if (st && !st.spinning) { st.drawn = []; st.result = ''; } return done(); }
+      case 'slot.history.clear': { const g = this.findGraphic(a.id); if (g.data.slot) g.data.slot.history = []; return done(); }
 
       /* Rangliste */
       case 'board.add': case 'board.set': {
@@ -1215,7 +1257,7 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
         show: 'graphic.show', hide: 'graphic.hide', toggle: 'graphic.toggle', preview: 'graphic.preview',
         'timer-start': 'timer.start', 'timer-pause': 'timer.pause', 'timer-toggle': 'timer.toggle', 'timer-reset': 'timer.reset',
         'timer-set': 'timer.set', 'timer-add': 'timer.add', score: 'score.add', 'score-set': 'score.set', 'score-reset': 'score.reset', 'team-add': 'score.team.add', 'team-remove': 'score.team.remove',
-        spin: 'wheel.spin', 'wheel-refill': 'wheel.refill', 'wheel-hide': 'wheel.hideResult', board: 'board.add', 'board-set': 'board.set', 'board-reset': 'board.reset', 'board-entry': 'board.entry.add', reload: 'web.reload', fx: 'frame.fx',
+        spin: 'wheel.spin', 'wheel-refill': 'wheel.refill', 'wheel-hide': 'wheel.hideResult', board: 'board.add', 'board-set': 'board.set', 'board-reset': 'board.reset', 'board-entry': 'board.entry.add', reload: 'web.reload', fx: 'frame.fx', roll: 'slot.spin', 'roll-reset': 'slot.reset',
         next: 'step', prev: 'step', goto: 'step.goto', duplicate: 'graphic.duplicate'
       };
       if (action === 'update') {

@@ -110,6 +110,7 @@ function buildVariables(self) {
       if (g.type === 'wheel') {
         defs.push({ variableId: `g_${k}_result`, name: `${g.name}: letztes Ergebnis` }, { variableId: `g_${k}_spinning`, name: `${g.name}: dreht sich (true/false)` }, { variableId: `g_${k}_spins`, name: `${g.name}: Anzahl Drehungen` });
       }
+      if (g.type === 'slot') defs.push({ variableId: `g_${k}_result`, name: `${g.name}: gezogener Wert` }, { variableId: `g_${k}_left`, name: `${g.name}: übrige Werte` }, { variableId: `g_${k}_spinning`, name: `${g.name}: rollt (true/false)` });
       if (g.type === 'camframe') defs.push({ variableId: `g_${k}_hp`, name: `${g.name}: Leben %` });
       if (g.type === 'leaderboard') {
         for (const n of [1, 2, 3]) defs.push({ variableId: `g_${k}_top${n}_name`, name: `${g.name}: Platz ${n} Name` }, { variableId: `g_${k}_top${n}_score`, name: `${g.name}: Platz ${n} Punkte` });
@@ -179,6 +180,14 @@ function computeVariables(self) {
       v[`g_${k}_result`] = spinning ? '…' : String(w.result || '');
       v[`g_${k}_spinning`] = String(spinning);
       v[`g_${k}_spins`] = String((w.history || []).length);
+    }
+    if (g.type === 'slot') {
+      const st = g.data.slot || {};
+      const all = String(g.data.entries || '').split('\n').map((x) => x.trim()).filter(Boolean);
+      const rolling = !!(st.spinning && now < (st.startedAt || 0) + (st.duration || 0) + 1000);
+      v[`g_${k}_result`] = rolling ? '…' : String(st.result || '');
+      v[`g_${k}_left`] = String(Math.max(0, all.length - (st.drawn || []).length));
+      v[`g_${k}_spinning`] = String(rolling);
     }
     if (g.type === 'camframe') v[`g_${k}_hp`] = String(Number(g.data.hp) || 0);
     if (g.type === 'leaderboard') {

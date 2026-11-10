@@ -154,6 +154,10 @@ function buildActions(self) {
     wheel_hide: { name: 'Glücksrad: Ergebnis-Nachricht ausblenden', options: [graphicOpt(self, ['wheel'], 'Glücksrad')], callback: forGraphic('wheel.hideResult') },
     wheel_refill: { name: 'Glücksrad: alle Felder zurück ins Rad', options: [graphicOpt(self, ['wheel'], 'Glücksrad')], callback: forGraphic('wheel.refill') },
 
+    /* Rolltext */
+    slot_spin: { name: 'Rolltext: ziehen', options: [graphicOpt(self, ['slot'], 'Rolltext')], callback: forGraphic('slot.spin') },
+    slot_reset: { name: 'Rolltext: alle Werte zurücklegen', options: [graphicOpt(self, ['slot'], 'Rolltext')], callback: forGraphic('slot.reset') },
+
     /* Rangliste */
     board_add: {
       name: 'Rangliste: Punkte',

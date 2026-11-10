@@ -130,7 +130,7 @@ class CueGfxInstance extends InstanceBase {
       const sig = this.structureSignature();
       if (sig !== this.structureSig) { this.structureSig = sig; this.rebuildDefinitions(); }
       this.pushVariables();
-      this.checkFeedbacks('graphic_live', 'graphic_preview', 'timer_running', 'timer_below', 'any_preview', 'poll_open', 'list_index', 'score_leading', 'wheel_spinning', 'has_new_questions', 'qa_has_active', 'qa_setting', 'qa_pending_flagged', 'sdi_released');
+      this.checkFeedbacks('graphic_live', 'graphic_preview', 'timer_running', 'timer_below', 'any_preview', 'poll_open', 'list_index', 'score_leading', 'wheel_spinning', 'slot_empty', 'has_new_questions', 'qa_has_active', 'qa_setting', 'qa_pending_flagged', 'sdi_released');
     }
   }
 

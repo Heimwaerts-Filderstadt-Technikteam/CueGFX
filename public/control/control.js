@@ -134,6 +134,10 @@
       box.append(h('button', { class: 'btn xs', onclick: () => run('wheel.spin', { id: g.id }) }, '🎡 Drehen'), h('span', { class: 'tv' }, w.spinning ? '…' : (w.result || '')));
     }
     if (g.type === 'camframe') for (const [k, label] of T.FRAME_FX.slice(0, 4)) box.append(h('button', { class: 'btn xs', title: label, onclick: () => run('frame.fx', { id: g.id, fx: k }) }, label.split(' ')[0]));
+    if (g.type === 'slot') {
+      const st = g.data.slot || {}, { all, left: rest } = T.slotLeft(g.data);
+      box.append(h('button', { class: 'btn xs', disabled: !rest.length && !g.data.autoRefill, onclick: () => run('slot.spin', { id: g.id }) }, '🎰 Ziehen'), h('span', { class: 'tv' }, st.spinning ? '…' : `${st.result || ''} (${rest.length}/${all.length})`));
+    }
     if (g.type === 'webpage') box.append(h('button', { class: 'btn xs', title: 'Neu laden', onclick: () => run('web.reload', { id: g.id }) }, '⟳'));
     if ((t.controls || []).includes('step')) {
       const n = g.type === 'lyrics' ? String(g.data.text || '').split(/\n\s*\n/).filter((s) => s.trim()).length : (g.data.items || []).length;
@@ -279,6 +283,7 @@
       if (ctrls.includes('step')) body.appendChild(stepPanel(g));
       if (ctrls.includes('qa')) body.appendChild(qaPanel());
       if (ctrls.includes('wheel')) body.appendChild(wheelPanel(g));
+      if (ctrls.includes('slot')) body.appendChild(slotPanel(g));
       if (ctrls.includes('board')) body.appendChild(boardPanel(g));
       if (ctrls.includes('web')) body.appendChild(webPanel(g));
       if (ctrls.includes('frame')) body.appendChild(framePanel(g));
@@ -485,6 +490,57 @@
       h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('b', { class: 'hint' }, 'Verlauf'),
         h('div', { class: 'row' }, h('button', { class: 'btn xs', onclick: exportCsv }, '⤓ CSV'),
           h('button', { class: 'btn xs', onclick: async () => { if (await UI.confirm('Verlauf leeren?', 'Alle bisherigen Ergebnisse werden gelöscht.', 'Leeren')) run('wheel.history.clear', { id: g.id }); } }, 'Leeren'))),
+      hist);
+  }
+
+  /* ---------- Rolltext ---------- */
+  function slotPanel(g) {
+    const spin = h('button', { class: 'btn primary big', onclick: () => run('slot.spin', { id: g.id }) }, '🎰 Ziehen');
+    const status = h('div', { class: 'wh-status' });
+    const left = h('span', { class: 'hint' });
+    const reset = h('button', { class: 'btn sm', onclick: async () => { if (await UI.confirm('Alle Werte zurücklegen?', 'Bereits gezogene Werte können danach wieder gezogen werden.', 'Zurücklegen')) run('slot.reset', { id: g.id }); } }, '↺ Alle zurücklegen');
+    const drawnBox = h('div', { class: 'sl-drawn' });
+    const hist = h('div', { class: 'wh-hist' });
+    const exportCsv = () => {
+      const st = (graphic(g.id).data.slot || {}), rows = (st.history || []).slice().reverse();
+      if (!rows.length) return toast('Noch keine Ergebnisse', 'warn');
+      const q = (x) => '"' + String(x).replace(/"/g, '""') + '"';
+      const csv = '\ufeffNr;Zeit;Ergebnis\n' + rows.map((r, i) => [i + 1, new Date(r.ts).toLocaleString('de-DE'), q(r.label)].join(';')).join('\n');
+      const a = h('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: `${graphic(g.id).name || 'Rolltext'} – Ziehungen.csv` });
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    };
+    let timer = null;
+    const sync = () => {
+      const gg = graphic(g.id); if (!gg) return;
+      const d = gg.data, st = d.slot || {}, now = Date.now();
+      const rolling = !!(st.spinning && now < (st.startedAt || 0) + (st.duration || 0) + 1500);
+      const { all, left: rest } = T.slotLeft(d);
+      const empty = !rest.length && !d.autoRefill;
+      spin.disabled = rolling || !all.length || empty;
+      spin.textContent = rolling ? '… rollt' : empty ? 'Alle gezogen' : '🎰 Ziehen';
+      status.innerHTML = '';
+      status.append(h('small', null, rolling ? 'Es rollt …' : (st.result ? 'Gezogen' : 'Noch nichts gezogen')), h('b', null, rolling ? '…' : (st.result || '–')));
+      left.textContent = `${rest.length} von ${all.length} Werten übrig${d.autoRefill ? ' · danach von vorne' : ''}`;
+      reset.disabled = rolling || rest.length === all.length;
+      drawnBox.innerHTML = '';
+      for (const v of all) {
+        const used = !rest.includes(v) || (rest.filter((x) => x === v).length < all.filter((x) => x === v).length);
+        drawnBox.appendChild(h('span', { class: used ? 'used' : '' }, v));
+      }
+      hist.innerHTML = '';
+      (st.history || []).slice(0, 12).forEach((r, i) => hist.appendChild(h('div', null, h('span', null, `${st.history.length - i}.`), h('b', null, r.label), h('i', null, new Date(r.ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })))));
+      if (!(st.history || []).length) hist.appendChild(h('div', { class: 'hint' }, 'Gezogene Werte erscheinen hier.'));
+      clearTimeout(timer);
+      if (rolling) timer = setTimeout(sync, Math.max(300, (st.startedAt + st.duration) - now + 400));
+    };
+    editorExtras.push(sync); sync();
+    return h('div', { class: 'wheelbox' },
+      h('div', { class: 'row' }, spin, status),
+      h('div', { class: 'row' }, left, reset),
+      drawnBox,
+      h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('b', { class: 'hint' }, 'Verlauf'),
+        h('div', { class: 'row' }, h('button', { class: 'btn xs', onclick: exportCsv }, '⤓ CSV'),
+          h('button', { class: 'btn xs', onclick: async () => { if (await UI.confirm('Verlauf leeren?', 'Die Liste der bisherigen Ziehungen wird gelöscht (bereits gezogene Werte bleiben gezogen).', 'Leeren')) run('slot.history.clear', { id: g.id }); } }, 'Leeren'))),
       hist);
   }
 

@@ -448,3 +448,24 @@ body.audio-only #stage { visibility: hidden; }
 .web.opaque { background: #fff; }
 .web iframe { position: absolute; left: 0; top: 0; border: 0; background: transparent; color-scheme: normal;
   width: calc(100% / var(--wz, 1)); height: calc(100% / var(--wz, 1)); transform: scale(var(--wz, 1)); transform-origin: 0 0; }
+
+/* ---------- Rolltext ---------- */
+.sl { position: relative; width: var(--slw); display: flex; flex-direction: column; align-items: stretch; gap: 10px; font-family: var(--font-heading); color: var(--text); }
+.sl-title { align-self: flex-start; background: var(--primary); color: var(--text-on-primary); font-size: calc(30px * var(--fs)); font-weight: 800; padding: 6px 22px; border-radius: var(--radius); text-transform: uppercase; letter-spacing: .04em; box-shadow: var(--shadow); }
+.sl-win { position: relative; height: var(--slrh); overflow: hidden; border-radius: var(--radius);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 18%, #000 82%, transparent 100%); mask-image: linear-gradient(180deg, transparent 0, #000 18%, #000 82%, transparent 100%); }
+.sl-box .sl-win, .sl-bar .sl-win { background: var(--panel); box-shadow: var(--shadow); -webkit-mask-image: none; mask-image: none; }
+.sl-box .sl-win::before, .sl-box .sl-win::after, .sl-bar .sl-win::before, .sl-bar .sl-win::after { content: ''; position: absolute; left: 0; right: 0; height: 28%; z-index: 1; pointer-events: none; }
+.sl-box .sl-win::before, .sl-bar .sl-win::before { top: 0; background: linear-gradient(180deg, var(--panel), transparent); }
+.sl-box .sl-win::after, .sl-bar .sl-win::after { bottom: 0; background: linear-gradient(0deg, var(--panel), transparent); }
+.sl-bar .sl-win { border-left: 12px solid var(--primary); border-radius: 0 var(--radius) var(--radius) 0; }
+.sl-strip { will-change: transform; }
+.sl-item { height: var(--slrh); display: flex; align-items: center; justify-content: center; padding: 0 30px; font-size: calc(var(--slfs) * var(--fs)); font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; }
+.sl-bar .sl-item { justify-content: flex-start; }
+.sl-big .sl-item { text-shadow: 0 4px 18px rgba(0,0,0,.45); }
+.sl.won .sl-win { animation: slWin 1.2s ease-out; }
+.sl-box.won .sl-win, .sl-bar.won .sl-win { box-shadow: var(--shadow), 0 0 0 5px var(--accent), 0 0 40px var(--accent); transition: box-shadow .3s; }
+.sl-big.won .sl-item { color: var(--accent); transition: color .3s; }
+@keyframes slWin { 0% { transform: scale(1); } 15% { transform: scale(1.06); } 30% { transform: scale(.98); } 45% { transform: scale(1.02); } 100% { transform: scale(1); } }
+.sl-res { align-self: center; font-size: calc(26px * var(--fs)); font-weight: 800; color: var(--accent); text-transform: uppercase; letter-spacing: .12em; animation: lbIn .5s ease-out; }
+.sl-fx { position: absolute; left: 50%; top: 50%; width: 140%; height: auto; aspect-ratio: auto; transform: translate(-50%, -60%); pointer-events: none; z-index: 3; }

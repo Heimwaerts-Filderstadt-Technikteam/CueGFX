@@ -382,6 +382,25 @@
     ]
   });
 
+  def('slot', {
+    label: 'Rolltext (Zufallsziehung)', icon: '🎰', category: 'Interaktion', pro: true,
+    controls: ['slot'],
+    fields: [
+      { key: 'title', label: 'Überschrift (optional)', type: 'text', default: 'Ausgelost' },
+      { key: 'entries', label: 'Werte (eine Zeile pro Wert)', type: 'textarea', default: 'Anna\nBen\nClara\nDavid\nEmma\nFelix\nGreta\nHannes' },
+      { key: 'style', label: 'Stil', type: 'select', options: [['box', 'Box'], ['bar', 'Leiste (wie Bauchbinde)'], ['big', 'Groß, ohne Box']], default: 'box' },
+      { key: 'width', label: 'Breite (px)', type: 'number', default: 900, min: 200, max: 1880 },
+      { key: 'fontSize', label: 'Schriftgröße (px)', type: 'number', default: 84, min: 20, max: 300 },
+      { key: 'spinSeconds', label: 'Rolldauer (s)', type: 'number', default: 4, min: 1, max: 20, step: 0.5 },
+      { key: 'autoRefill', label: 'Wenn alle gezogen: automatisch von vorne', type: 'toggle', default: false },
+      { key: 'resultLabel', label: 'Hinweis beim Ergebnis (optional)', type: 'text', default: '' },
+      { key: 'confetti', label: 'Konfetti beim Ergebnis', type: 'toggle', default: true },
+      { key: 'sound', label: 'Rollgeräusch (wenn der Ausgang Ton hat)', type: 'toggle', default: true },
+      { key: 'resultVar', label: 'Ergebnis in Variable schreiben (Name, optional)', type: 'text', default: '' },
+      ...commonPositioned('center')
+    ]
+  });
+
   def('leaderboard', {
     label: 'Rangliste', icon: '🏅', category: 'Sport', pro: true,
     controls: ['board'],
@@ -546,6 +565,14 @@
     return left;
   }
 
+  /* Rolltext: Werte, die noch nicht gezogen wurden (jeder Wert nur einmal) */
+  function slotLeft(d) {
+    d = d || {};
+    const all = String(d.entries || '').split('\n').map((x) => x.trim()).filter(Boolean);
+    const out = ((d.slot && d.slot.drawn) || []).slice();
+    return { all, left: all.filter((x) => { const i = out.indexOf(x); if (i >= 0) { out.splice(i, 1); return false; } return true; }) };
+  }
+
   /* Rangliste: sortierte Zeilen mit Platz; idx = Position in der Eingabeliste */
   function boardRows(d) {
     d = d || {};
@@ -565,5 +592,5 @@
 
   const FRAME_FX = [['explode', '💥 Explosion'], ['arrows', '🏹 Pfeile'], ['teleport', '🌀 Teleport'], ['damage', '💢 Treffer'], ['heal', '💚 Heilen'], ['levelup', '⭐ Level Up'], ['coins', '🪙 Münzen'], ['hearts', '❤️ Herzen']];
 
-  return { TYPES: T, FRAME_FX, scoreTeams, teamIndex, TEAM_COLORS, wheelEntries, boardRows, CATEGORIES, POSITIONS, ANIMATIONS, allFields, defaults, timerElapsed, timerValueMs, formatDuration, formatCountUp, THEME_PRESETS, defaultTimer };
+  return { TYPES: T, FRAME_FX, scoreTeams, teamIndex, TEAM_COLORS, wheelEntries, slotLeft, boardRows, CATEGORIES, POSITIONS, ANIMATIONS, allFields, defaults, timerElapsed, timerValueMs, formatDuration, formatCountUp, THEME_PRESETS, defaultTimer };
 });

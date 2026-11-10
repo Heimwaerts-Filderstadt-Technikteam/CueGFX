@@ -85,6 +85,28 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
   await cmd('wheel.refill', { id: wId });
   ok(wd().wheel.excluded.length === 0, 'Glücksrad: alle zurück ins Rad');
 
+  // Rolltext: jeder Wert nur einmal
+  const sId = (await cmd('graphic.add', { type: 'slot', data: { entries: 'A\nB\nC\nD', spinSeconds: 1, resultVar: 'los' } })).body.result.id;
+  const sd = () => server.project.graphics.find((g) => g.id === sId).data;
+  const got = [];
+  for (let i = 0; i < 4; i++) {
+    const r = await get(`/api/graphics/${sId}/roll`);
+    if (i === 0) ok((await get(`/api/graphics/${sId}/roll`)).status === 409, 'Rolltext: Ziehen während des Rollens abgewiesen');
+    ok(r.body.ok && sd().slot.strip[sd().slot.strip.length - 1] === sd().slot.target, `Rolltext: Ziehung ${i + 1}, Walze endet auf dem Ergebnis`);
+    await new Promise((res) => setTimeout(res, 1350));
+    got.push(sd().slot.result);
+  }
+  ok(new Set(got).size === 4 && got.every((x) => 'ABCD'.includes(x)), `Rolltext: jeder Wert genau einmal (${got.join(', ')})`);
+  ok((await get(`/api/graphics/${sId}/roll`)).status === 409, 'Rolltext: alle gezogen → kein weiterer Wert');
+  ok(server.variables().los === got[3] && sd().slot.history.length === 4, 'Rolltext: Variable und Verlauf');
+  await get(`/api/graphics/${sId}/roll-reset`);
+  ok(sd().slot.drawn.length === 0, 'Rolltext: zurücklegen');
+  await cmd('graphic.update', { id: sId, data: { entries: 'X' } });
+  await get(`/api/graphics/${sId}/roll`); await new Promise((res) => setTimeout(res, 1350));
+  await cmd('graphic.update', { id: sId, data: { autoRefill: true } });
+  ok((await get(`/api/graphics/${sId}/roll`)).body.ok, 'Rolltext: mit „von vorne“ geht es nach dem letzten Wert weiter');
+  await new Promise((res) => setTimeout(res, 1350));
+
   // Rangliste
   const bId = (await cmd('graphic.add', { type: 'leaderboard' })).body.result.id;
   const bd = () => server.project.graphics.find((g) => g.id === bId).data;
@@ -148,7 +170,7 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
   fs.rmSync(path.join(dir, 'media', up.body.name));
   const imp = await get('/api/import?name=Importiert', { method: 'POST', body: exp.body });
   ok(imp.body.ok && imp.body.media === 1, 'Import inkl. Mediendatei');
-  ok(server.project.name === 'Importiert' && server.project.graphics.length === list.length + 8, 'Importiertes Projekt ist aktiv und vollständig');
+  ok(server.project.name === 'Importiert' && server.project.graphics.length === list.length + 9, 'Importiertes Projekt ist aktiv und vollständig');
   ok(fs.existsSync(path.join(dir, 'media', up.body.name)), 'Mediendatei wiederhergestellt');
 
   if (typeof WebSocket === 'function') {
