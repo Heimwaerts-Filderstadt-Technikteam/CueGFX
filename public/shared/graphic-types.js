@@ -331,7 +331,10 @@
       { key: 'rotateSeconds', label: 'Rotation alle (s)', type: 'number', default: 8, min: 2, max: 120, showIf: { mode: 'single', singleSource: 'rotate' } },
       { key: 'showLikes', label: 'Likes anzeigen', type: 'toggle', default: true },
       { key: 'showAuthor', label: 'Namen anzeigen', type: 'toggle', default: true },
-      { key: 'showQr', label: 'QR-Code zur Publikumsseite', type: 'toggle', default: false },
+      { key: 'showQr', label: 'QR-Code zur Publikumsseite', type: 'toggle', default: true },
+      { key: 'qrPlace', label: 'QR-Code-Position', type: 'select', options: [['side', 'Groß rechts neben den Fragen (Leinwand)'], ['header', 'Klein in der Titelleiste']], default: 'side', showIf: { showQr: true } },
+      { key: 'qrSize', label: 'QR-Code-Größe (px)', type: 'number', default: 360, min: 150, max: 700, showIf: { showQr: true, qrPlace: 'side' } },
+      { key: 'qrText', label: 'Text am QR-Code', type: 'text', default: 'Stell deine Frage', showIf: { showQr: true } },
       { key: 'emptyText', label: 'Text ohne Fragen (leer = ausblenden)', type: 'text', default: 'Noch keine Fragen – jetzt mitmachen!' },
       { key: 'width', label: 'Breite (px)', type: 'number', default: 1100, min: 400, max: 1900 },
       ...commonPositioned('middle-right')

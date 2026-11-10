@@ -331,8 +331,17 @@ body.guides #stage::after {
 .wc-word.new { transform: scale(.2); opacity: 0 !important; }
 
 /* ---------- Q&A live ---------- */
-.qaw { display: flex; flex-direction: column; gap: 12px; }
-.qaw > .qaw-h, .qaw > .qaw-new { flex: none; }
+.qaw { display: flex; flex-direction: row; align-items: stretch; gap: 20px; }
+.qaw-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.qaw-main > .qaw-h, .qaw-main > .qaw-new { flex: none; }
+/* Großer QR-Code in eigener Spalte – gut scanbar auf der Leinwand */
+.qaw-side { flex: none; width: calc(var(--qrs, 360px) + 52px); align-self: flex-start; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 18px 22px; }
+.qaw-side:empty { display: none; }
+.qaw-qrbox { background: #fff; border-radius: calc(var(--radius) * .7); padding: 16px; line-height: 0; }
+.qaw-qrbox img { width: var(--qrs, 360px); height: var(--qrs, 360px); display: block; image-rendering: pixelated; }
+.qaw-side b { font-family: var(--font-heading); font-size: calc(30px * var(--fs)); font-weight: 800; line-height: 1.15; }
+.qaw-side span { font-size: calc(21px * var(--fs)); opacity: .85; overflow-wrap: anywhere; line-height: 1.2; }
 .qaw-h { display: flex; align-items: center; justify-content: space-between; gap: 20px; background: var(--primary); color: var(--text-on-primary); padding: 12px 14px 12px 26px; border-radius: var(--radius); box-shadow: var(--shadow); }
 .qaw-ht { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .qaw-title { font-family: var(--font-heading); font-weight: 800; font-size: calc(34px * var(--fs)); text-transform: uppercase; letter-spacing: .06em; }

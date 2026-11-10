@@ -798,10 +798,10 @@
       if (!d.showNewest && newestAny && !top.includes(newestAny)) top = top.slice(0, Math.max(0, top.length - 1)).concat(newestAny);
       const showNew = newest && !top.includes(newest);
       if (!el.querySelector('.qaw-list')) {
-        el.innerHTML = '<div class="qaw-h"><div class="qaw-ht"><span class="qaw-title"></span><span class="qaw-count"></span></div><div class="qaw-foot"></div></div><div class="qaw-list"></div><div class="qaw-new"><div class="qaw-new-label">Neueste Frage</div><div class="qaw-item"></div></div><div class="qaw-empty"></div>';
+        el.innerHTML = '<div class="qaw-main"><div class="qaw-h"><div class="qaw-ht"><span class="qaw-title"></span><span class="qaw-count"></span></div><div class="qaw-foot"></div></div><div class="qaw-list"></div><div class="qaw-new"><div class="qaw-new-label">Neueste Frage</div><div class="qaw-item"></div></div><div class="qaw-empty"></div></div><div class="qaw-side"></div>';
       }
       setText(el.querySelector('.qaw-title'), c.sub(d.heading));
-      el.querySelector('.qaw-h').style.display = d.heading || d.showQr ? '' : 'none';
+      el.querySelector('.qaw-h').style.display = d.heading || (d.showQr && qrPlace() === 'header') ? '' : 'none';
       const cntEl = el.querySelector('.qaw-count');
       cntEl.dataset.base = all.length ? `${all.length} Frage${all.length === 1 ? '' : 'n'}` : '';
       setText(cntEl, cntEl.dataset.base);
@@ -831,10 +831,7 @@
       const nb = el.querySelector('.qaw-new');
       nb.style.display = showNew ? '' : 'none';
       if (showNew) setHtml(nb.querySelector('.qaw-item'), itemInner(newest));
-      const foot = el.querySelector('.qaw-foot');
-      const url = audienceUrl(c);
-      setHtml(foot, d.showQr ? `<div class="qaw-qrt"><b>Stell deine Frage</b><span>${esc(url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</span></div>${qrImg(url)}` : '');
-      foot.style.display = d.showQr ? '' : 'none';
+      renderQr(c);
       const empty = el.querySelector('.qaw-empty');
       setText(empty, all.length ? '' : c.sub(d.emptyText));
       empty.style.display = all.length ? 'none' : '';
@@ -846,6 +843,23 @@
        Überschrift, neueste Frage und QR-Code bleiben immer sichtbar. Darüber stehen nur so viele
        weitere Fragen, wie in die Höhe passen (unter Berücksichtigung von Skalierung & Versatz).
        Reicht es selbst dann nicht, wird die Schrift der Fragen verkleinert. */
+    const qrPlace = () => (d.qrPlace === 'header' ? 'header' : 'side');
+    const qrSize = () => Math.max(150, Math.min(700, Number(d.qrSize) || 360));
+    /* QR-Code: groß in eigener Spalte rechts (gut scanbar von weit weg) oder klein in der Titelleiste */
+    function renderQr(c) {
+      const url = audienceUrl(c);
+      const short = esc(url.replace(/^https?:\/\//, '').replace(/\/$/, ''));
+      const side = d.showQr && qrPlace() === 'side';
+      el.classList.toggle('qr-side', side);
+      el.style.setProperty('--qrs', qrSize() + 'px');
+      const foot = el.querySelector('.qaw-foot'), sideEl = el.querySelector('.qaw-side');
+      setHtml(foot, d.showQr && !side ? `<div class="qaw-qrt"><b>${esc(c.sub(d.qrText || 'Stell deine Frage'))}</b><span>${short}</span></div>${qrImg(url)}` : '');
+      foot.style.display = d.showQr && !side ? '' : 'none';
+      setHtml(sideEl, side ? `<div class="qaw-qrbox">${qrImg(url)}</div><b>${esc(c.sub(d.qrText || 'Stell deine Frage'))}</b><span>${short}</span>` : '');
+      sideEl.style.display = side ? '' : 'none';
+    }
+    const totalWidth = () => (Number(d.width) || 1100) + (d.showQr && qrPlace() === 'side' ? qrSize() + 72 : 0);
+
     function geom() {
       const wrap = el.closest('.g-wrap');
       if (!wrap || !el.isConnected || !wrap.clientHeight) return null;
@@ -859,7 +873,7 @@
       if (!G) return;
       // Ausgangszustand
       zoom = 1; el.style.zoom = ''; el.style.translate = ''; el.style.setProperty('--qfit', '1');
-      el.style.width = Math.min(Number(d.width) || 1100, G.maxW) + 'px';
+      el.style.width = Math.min(totalWidth(), G.maxW) + 'px';
       const box = el.querySelector('.qaw-list');
       const items = box ? [...box.children] : [];
       for (const n of items) n.style.display = '';
@@ -871,7 +885,7 @@
       while (tooBig() && k > 0.75) { k = Math.round((k - 0.05) * 100) / 100; el.style.setProperty('--qfit', String(k)); }
       // 3. Ganze Wand verkleinern (Titel, QR, Fragen), bis alles passt
       // Beim Verkleinern frei werdende Breite nutzen (höchstens bis zur eingestellten Breite) → weniger Zeilen
-      const baseW = Number(d.width) || 1100;
+      const baseW = totalWidth();
       while (tooBig() && zoom > 0.25) {
         zoom = Math.round((zoom - 0.05) * 100) / 100;
         el.style.zoom = String(zoom);
@@ -914,9 +928,9 @@
 
     function renderSingle(c, now) {
       const q = pickSingle(c, now);
-      if (!el.querySelector('.qaw-one')) el.innerHTML = '<div class="qaw-h"><div class="qaw-ht"><span class="qaw-title"></span></div><div class="qaw-foot"></div></div><div class="qaw-one"></div>';
+      if (!el.querySelector('.qaw-one')) el.innerHTML = '<div class="qaw-main"><div class="qaw-h"><div class="qaw-ht"><span class="qaw-title"></span></div><div class="qaw-foot"></div></div><div class="qaw-one"></div></div><div class="qaw-side"></div>';
       setText(el.querySelector('.qaw-title'), c.sub(d.heading));
-      el.querySelector('.qaw-h').style.display = d.heading || d.showQr ? '' : 'none';
+      el.querySelector('.qaw-h').style.display = d.heading || (d.showQr && qrPlace() === 'header') ? '' : 'none';
       const one = el.querySelector('.qaw-one');
       const key = q ? q.id + '|' + q.text + '|' + q.likes + '|' + q.active : 'empty';
       if (one._key !== key) {
@@ -928,10 +942,7 @@
           setTimeout(() => { one.innerHTML = html; one.classList.remove('swap'); fit(); }, 300);
         } else one.innerHTML = html;
       }
-      const foot = el.querySelector('.qaw-foot');
-      const url = audienceUrl(c);
-      setHtml(foot, d.showQr ? `<div class="qaw-qrt"><b>Stell deine Frage</b><span>${esc(url.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</span></div>${qrImg(url)}` : '');
-      foot.style.display = d.showQr ? '' : 'none';
+      renderQr(c);
       el.style.display = !q && !d.emptyText && !d.showQr ? 'none' : '';
       fit();
     }
