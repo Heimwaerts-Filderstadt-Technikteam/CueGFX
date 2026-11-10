@@ -72,8 +72,8 @@
 
   function menu(anchor, items) {
     document.querySelectorAll('.menu').forEach((m) => m.remove());
-    const m = h('div', { class: 'menu' }, items.map((it) => it === '-' ? h('hr') :
-      h('button', { class: it.cur ? 'cur' : '', onclick: () => { m.remove(); it.action(); } }, it.label)));
+    const m = h('div', { class: 'menu' }, items.map((it) => it === '-' ? h('hr') : it.header ? h('div', { class: 'menu-h' }, it.label) :
+      h('button', { class: it.cur ? 'cur' : '', disabled: !!it.disabled, onclick: () => { m.remove(); it.action && it.action(); } }, it.label)));
     document.body.appendChild(m);
     const r = anchor.getBoundingClientRect();
     m.style.left = Math.min(r.left, window.innerWidth - m.offsetWidth - 8) + 'px';

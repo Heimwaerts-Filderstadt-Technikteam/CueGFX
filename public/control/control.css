@@ -364,3 +364,24 @@ a.btn { text-decoration: none; color: inherit; display: inline-block; }
 .lbc-row { display: flex; align-items: center; gap: 6px; background: var(--bg); border-radius: 6px; padding: 4px 8px; }
 .lbc-row .rk { min-width: 28px; color: var(--fg2); font-variant-numeric: tabular-nums; }
 .lbc-row b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Rahmen-Builder */
+.menu-h { padding: 6px 12px 2px; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--fg2); }
+.fb { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; }
+.fb-top { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 10px; }
+.fb-cv { width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; border: 1px solid var(--line2); display: block; background: #2a2f38; }
+.fb-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fb-add .row { flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.fb-list { display: flex; flex-direction: column; gap: 3px; overflow: auto; max-height: 260px; background: var(--bg); border-radius: 6px; padding: 4px; }
+.fb-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 5px; cursor: pointer; border: 1px solid transparent; font-size: 12px; }
+.fb-row:hover { background: var(--panel2, rgba(255,255,255,.04)); }
+.fb-row.sel { border-color: var(--accent, #3b82f6); background: rgba(59,130,246,.12); }
+.fb-row.off .nm { opacity: .45; text-decoration: line-through; }
+.fb-row .ic { width: 18px; text-align: center; }
+.fb-row .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fb-row .nm i { color: var(--fg2); font-style: normal; }
+.fb-props { border-top: 1px solid var(--line); padding-top: 8px; }
+.fb-ph { font-weight: 700; margin-bottom: 6px; }
+.fb-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px 10px; }
+.fb-fields .field.full { grid-column: 1 / -1; }
+@media (max-width: 1100px) { .fb-top { grid-template-columns: 1fr; } }

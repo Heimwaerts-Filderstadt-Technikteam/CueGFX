@@ -19,7 +19,7 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
   console.log(`CueGFX-Test auf ${base}`);
 
   console.log('Seiten');
-  for (const p of ['/control', '/output/1', '/output/preview', '/audience', '/shared/graphic-types.js', '/output/renderers.js']) ok((await get(p)).status === 200, `GET ${p}`);
+  for (const p of ['/control', '/output/1', '/output/preview', '/audience', '/shared/graphic-types.js', '/output/renderers.js', '/shared/frame-draw.js', '/control/framebuilder.js']) ok((await get(p)).status === 200, `GET ${p}`);
   ok((await get('/output/../../package.json')).status === 404, 'Pfad-Traversal wird abgewiesen');
 
   console.log('Grafiken & Befehle');
@@ -110,6 +110,14 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
   await cmd('frame.fx', { id: cfId, fx: 'heal' });
   ok(hp1 === 65 && cfd().hp === 100 && cfd().fx.kind === 'heal' && cfd().fx.id !== fx1, 'Kamerarahmen: Effekte, Treffer/Heilen ändern Leben');
   ok((await cmd('frame.fx', { id: cfId, fx: 'quatsch' })).status === 400, 'Kamerarahmen: unbekannter Effekt abgewiesen');
+  const lay = [{ id: 'a', type: 'border', color: '#ff0000', width: 6 }];
+  const ft = await cmd('frame.template.save', { name: 'Mein Rahmen', layers: lay });
+  await cmd('frame.template.save', { name: 'mein rahmen', layers: lay.concat([{ id: 'b', type: 'text', text: 'X' }]) });
+  const tpls = server.store.config.frameTemplates;
+  ok(ft.body.ok && tpls.length === 1 && tpls[0].layers.length === 2, 'Kamerarahmen: eigene Vorlage speichern/überschreiben');
+  ok((await cmd('frame.template.save', { name: 'Leer', layers: [] })).status === 400, 'Kamerarahmen: leere Vorlage abgewiesen');
+  await cmd('frame.template.delete', { id: tpls[0].id });
+  ok(server.store.config.frameTemplates.length === 0, 'Kamerarahmen: Vorlage löschen');
 
   const lyId = (await cmd('graphic.add', { type: 'lyrics' })).body.result.id;
   await get(`/api/graphics/${lyId}/next`);

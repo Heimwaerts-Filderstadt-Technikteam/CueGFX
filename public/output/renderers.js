@@ -553,8 +553,21 @@
     };
     const LOOK = {
       blocks: { a: '#ffffff', b: '#202020' }, arcade: { a: '#ff2bd6', b: '#22e6ff' }, cyber: { a: '#22e6ff', b: '#ff2bd6' },
-      rpg: { a: '#e8b84a', b: '#5b4a3a' }, scifi: { a: '#4cf2ff', b: '#0b3a4a' }, racing: { a: '#e11d48', b: '#111111' }
+      rpg: { a: '#e8b84a', b: '#5b4a3a' }, scifi: { a: '#4cf2ff', b: '#0b3a4a' }, racing: { a: '#e11d48', b: '#111111' }, custom: { a: '#ffffff', b: '#000000' }
     };
+    // Eigene Rahmen: Bilder laden und bei Fertig neu zeichnen
+    const imgs = new Map();
+    const FD = window.CueFrameDraw;
+    const fenv = () => ({
+      sub: (t) => (ctxRef ? ctxRef.sub(t) : t), font: fontOf(true), values: { hp: d.hp, mp: d.mp },
+      image: (src) => {
+        if (!src) return null;
+        const url = ctxRef ? ctxRef.media(src) : src;
+        let im = imgs.get(url);
+        if (!im) { im = new Image(); im.onload = () => { key = ''; if (d && ctxRef) { render(); } }; im.src = url; imgs.set(url, im); }
+        return im;
+      }
+    });
     const accent = () => (d && d.color) || (d && d.style === 'blocks' ? MAT[d.material || 'stone'][2] : LOOK[(d && d.style) || 'blocks'].a);
     const geo = () => {
       const t = Math.max(6, Math.min(120, Number(d.thickness) || 28));
@@ -719,6 +732,7 @@
       const { X, Y, W, H, t } = geo();
       lx.clearRect(0, 0, 1920, 1080);
       if (d.showArea) { lx.fillStyle = 'rgba(0,200,255,.18)'; lx.fillRect(X, Y, W, H); lx.strokeStyle = '#00c8ff'; lx.setLineDash([12, 8]); lx.lineWidth = 2; lx.strokeRect(X, Y, W, H); lx.setLineDash([]); }
+      if (d.style === 'custom') { if (FD) FD.drawStatic(lx, { X, Y, W, H }, d.layers, fenv()); return; }
       ({ blocks: drawBlocks, arcade: drawArcade, cyber: drawCyber, rpg: drawRpg, scifi: drawScifi, racing: drawRacing }[d.style] || drawBlocks)(lx, X, Y, W, H, t);
       drawLabel(lx, X, Y, W, H, t);
     };
@@ -810,7 +824,7 @@
       el, needsTick: true,
       update(g, c) {
         d = g.data; ctxRef = c;
-        const k = JSON.stringify([d.style, d.material, d.color, d.x, d.y, d.w, d.h, d.thickness, d.label && c.sub(d.label), d.labelPos, d.showBars, d.hp, d.mp, d.showArea]);
+        const k = JSON.stringify([d.style, d.material, d.color, d.x, d.y, d.w, d.h, d.thickness, d.label && c.sub(d.label), d.labelPos, d.showBars, d.hp, d.mp, d.showArea, d.style === 'custom' ? d.layers : 0, d.style === 'custom' ? (JSON.stringify(d.layers || []).includes('{{') ? c.sub(JSON.stringify(d.layers)) : '') : '']);
         if (k !== key) { key = k; render(); }
         const fx = d.fx;
         if (fxSeen === null) fxSeen = fx ? fx.id : '';          // beim Einblenden alte Effekte nicht nachholen
@@ -829,7 +843,8 @@
           for (let yy = 0; yy < 1080; yy += 24) { const off = Math.random() < 0.35 ? rnd(-30, 30) : 0; x.drawImage(layer, 0, yy, 1920, 24, off, yy, 1920, 24); }
         } else x.drawImage(layer, 0, 0);
         // Dauer-Animation je Look
-        if (d.ambient !== false) {
+        if (d.style === 'custom' && FD) FD.drawAnimated(x, { X, Y, W, H }, d.layers, fenv(), d.ambient === false ? 0 : now - t0);
+        else if (d.ambient !== false) {
           const tt = (now - t0) / 1000;
           if (d.style === 'cyber' || d.style === 'arcade') {
             const per = 2 * (W + H + 4 * t), pos = (tt * 380) % per, seg = 140;

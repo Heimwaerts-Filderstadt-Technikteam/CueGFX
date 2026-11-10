@@ -11,6 +11,7 @@
     tab: 'graphics', sel: localStorage.getItem('cue.sel') || null, search: '', pgmOut: localStorage.getItem('cue.pgm') || '1', info: null,
     qaFilter: '', qaSort: 'likes', dlDraft: null, dsDraft: null, ndiDraft: null
   };
+  window.CueState = S;
   const mediaListeners = new Set();
   const groupsClosed = new Set(JSON.parse(localStorage.getItem('cue.closed') || '["Erweitert"]'));
 
@@ -297,6 +298,9 @@
         let el;
         if (def.type === 'builder') {
           el = CueBuilder(g.data.layers, (layers) => sendData(g.id, 'layers', layers), env);
+        } else if (def.type === 'framebuilder') {
+          el = CueFrameBuilder(g.data[def.key], (layers) => { sendData(g.id, def.key, layers); const gg = graphic(g.id); if (gg) gg.data[def.key] = layers; }, env, () => (graphic(g.id) || g).data);
+          el.classList.add('field', 'full');
         } else {
           el = UI.field(def, g.data[def.key], (v) => {
             sendData(g.id, def.key, v);
@@ -341,7 +345,7 @@
     for (const el of fieldEls) {
       const si = el.def.showIf;
       if (!si) continue;
-      const ok = Object.entries(si).every(([k, v]) => g.data[k] === v);
+      const ok = Object.entries(si).every(([k, v]) => (Array.isArray(v) ? v.includes(g.data[k]) : g.data[k] === v));
       el.style.display = ok ? '' : 'none';
     }
   }

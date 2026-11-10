@@ -340,7 +340,7 @@ class CueServer extends EventEmitter {
 
   _statePayload() {
     if (!this._lanCache || Date.now() - this._lanCache.t > 10000) this._lanCache = { t: Date.now(), urls: this.lanUrls() };
-    return { t: 'state', serverTime: Date.now(), project: this.project, vars: this.variables(), info: { version: VERSION, build: BUILD, port: this.port, lan: this._lanCache.urls, audienceUrl: this._audienceUrl(), audiencePort: Number(this.store.config.audiencePort) || 0, audiencePublicUrl: this.store.config.audiencePublicUrl || '', audienceStatus: this.pubStatus || 'aus', audioOut: this.audioOut(), themeTemplates: this._themeTemplates() } };
+    return { t: 'state', serverTime: Date.now(), project: this.project, vars: this.variables(), info: { version: VERSION, build: BUILD, port: this.port, lan: this._lanCache.urls, audienceUrl: this._audienceUrl(), audiencePort: Number(this.store.config.audiencePort) || 0, audiencePublicUrl: this.store.config.audiencePublicUrl || '', audienceStatus: this.pubStatus || 'aus', audioOut: this.audioOut(), themeTemplates: this._themeTemplates(), frameTemplates: this.store.config.frameTemplates || [] } };
   }
 
   /* ---------- Q&A-Export (Markdown / HTML / PDF) ---------- */
@@ -831,6 +831,27 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
         const pr = Types.THEME_PRESETS[a.preset];
         if (!pr) throw new HttpError(404, 'Preset unbekannt');
         Object.assign(p.theme, JSON.parse(JSON.stringify(pr)), { preset: a.preset });
+        return done();
+      }
+      /* Eigene Kamerarahmen als Vorlage (gelten für alle Projekte dieses Rechners) */
+      case 'frame.template.save': {
+        const name = String(a.name || '').trim().slice(0, 60);
+        if (!name) throw new HttpError(400, 'Bitte einen Namen angeben');
+        if (!Array.isArray(a.layers) || !a.layers.length) throw new HttpError(400, 'Der Rahmen hat noch keine Bausteine');
+        const layers = JSON.parse(JSON.stringify(a.layers)).slice(0, 60);
+        const list = this.store.config.frameTemplates || (this.store.config.frameTemplates = []);
+        let t = list.find((x) => x.name.toLowerCase() === name.toLowerCase());
+        if (t) Object.assign(t, { name, layers, updated: Date.now() });
+        else { t = { id: require('crypto').randomBytes(5).toString('hex'), name, layers, created: Date.now() }; list.push(t); }
+        this.store.saveConfig();
+        return done({ id: t.id, overwritten: !!t.updated });
+      }
+      case 'frame.template.delete': {
+        const list = this.store.config.frameTemplates || [];
+        const i = list.findIndex((x) => x.id === a.id);
+        if (i < 0) throw new HttpError(404, 'Vorlage nicht gefunden');
+        list.splice(i, 1);
+        this.store.saveConfig();
         return done();
       }
       /* Eigene Theme-Vorlagen (gelten für alle Projekte dieses Rechners) */
@@ -1408,7 +1429,7 @@ function coerce(type, key, v) {
   if (!f) return v;
   if (f.type === 'number') { const n = Number(v); return isNaN(n) ? 0 : n; }
   if (f.type === 'toggle') return v === true || v === 'true' || v === '1' || v === 1 || v === 'on';
-  if (f.type === 'list' || f.type === 'builder') {
+  if (f.type === 'list' || f.type === 'builder' || f.type === 'framebuilder') {
     if (typeof v === 'string') { try { return JSON.parse(v); } catch (_) { return []; } }
     return Array.isArray(v) ? v : [];
   }
