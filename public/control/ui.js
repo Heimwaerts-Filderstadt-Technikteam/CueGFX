@@ -244,7 +244,7 @@
           items.forEach((it, i) => {
             const sub = h('div', { class: 'sub' }, def.fields.map((sf) => {
               const f = field(Object.assign({}, sf, { full: false }), it[sf.key], (v) => { items[i][sf.key] = v; emit(); }, env);
-              if (sf.type === 'textarea') f.style.gridColumn = '1 / -1';
+              if (sf.type === 'textarea' || sf.type === 'media') f.style.gridColumn = '1 / -1';
               return f;
             }));
             const ops = h('div', { class: 'ops' },

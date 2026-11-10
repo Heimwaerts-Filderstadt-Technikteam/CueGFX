@@ -1,7 +1,7 @@
 'use strict';
 /* Fertige Tasten (Presets) – werden für jede Grafik des aktiven Projekts automatisch erzeugt */
 const { combineRgb } = require('@companion-module/base');
-const { graphicKeys, slug, TIMER_TYPES } = require('./variables');
+const { graphicKeys, slug, TIMER_TYPES, scoreTeams } = require('./variables');
 const { RED, GREEN, WHITE, BLACK, AMBER } = require('./feedbacks');
 
 const DARK = combineRgb(30, 34, 42), DARK_RED = combineRgb(80, 20, 30), DARK_GREEN = combineRgb(18, 60, 38);
@@ -55,7 +55,7 @@ function buildPresets(self) {
       P[`tminus_${g.id}`] = btn('Timer', `${g.name} – −1 Minute`, '−1:00', [['timer_add', Object.assign({ seconds: -60 }, opt)]]);
     }
     if (g.type === 'score') {
-      for (const team of ['a', 'b']) {
+      for (const team of scoreTeams(g.data).map((t) => t.key)) {
         P[`score_${team}_${g.id}`] = btn('Spielstand', `${g.name} – Team ${team.toUpperCase()} +1`, `${v(`g_${k}_team_${team}`)}\\n${v(`g_${k}_score_${team}`)}`,
           [['score_add', Object.assign({ team, delta: 1 }, opt)]], [['score_leading', Object.assign({ team }, opt), { bgcolor: GREEN, color: WHITE }]], { style: { size: 18 } });
         P[`scorem_${team}_${g.id}`] = btn('Spielstand', `${g.name} – Team ${team.toUpperCase()} −1`, `${v(`g_${k}_team_${team}`)}\\n−1`, [['score_add', Object.assign({ team, delta: -1 }, opt)]]);

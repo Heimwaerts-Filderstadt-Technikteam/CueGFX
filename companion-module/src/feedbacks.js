@@ -1,7 +1,7 @@
 'use strict';
 /* Feedbacks – färben Tasten nach Live-/Vorschau-Status, Timerstand usw. */
 const { combineRgb } = require('@companion-module/base');
-const { TIMER_TYPES, timerMs } = require('./variables');
+const { TIMER_TYPES, timerMs, scoreTeams, TEAM_CHOICES } = require('./variables');
 
 const RED = combineRgb(229, 36, 59), GREEN = combineRgb(31, 184, 90), AMBER = combineRgb(245, 165, 36), WHITE = combineRgb(255, 255, 255), BLACK = combineRgb(0, 0, 0);
 
@@ -45,11 +45,11 @@ function buildFeedbacks(self) {
     },
     score_leading: {
       type: 'boolean', name: 'Team führt', defaultStyle: { bgcolor: GREEN, color: WHITE },
-      options: [gopt(['score']), { type: 'dropdown', id: 'team', label: 'Team', default: 'a', choices: [{ id: 'a', label: 'Team A' }, { id: 'b', label: 'Team B' }] }],
+      options: [gopt(['score']), { type: 'dropdown', id: 'team', label: 'Team', default: 'a', choices: TEAM_CHOICES }],
       callback: (fb) => {
         const g = find(fb); if (!g) return false;
-        const a = Number(g.data.scoreA) || 0, b = Number(g.data.scoreB) || 0;
-        return fb.options.team === 'a' ? a > b : b > a;
+        const teams = scoreTeams(g.data), me = teams.find((t) => t.key === fb.options.team);
+        return !!me && teams.every((t) => t === me || t.score < me.score);
       }
     },
     poll_open: {

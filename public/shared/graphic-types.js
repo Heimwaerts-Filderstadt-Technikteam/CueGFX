@@ -152,8 +152,14 @@
       { key: 'colorB', label: 'Farbe B', type: 'color', default: '#1d4ed8' },
       { key: 'logoA', label: 'Logo A', type: 'media', kind: 'image', default: '' },
       { key: 'logoB', label: 'Logo B', type: 'media', kind: 'image', default: '' },
+      { key: 'moreTeams', label: 'Weitere Teams (Team C, D, …)', type: 'list', itemLabel: 'Team', default: [], fields: [
+        { key: 'name', label: 'Name', type: 'text', default: '' },
+        { key: 'score', label: 'Punkte', type: 'number', default: 0 },
+        { key: 'color', label: 'Farbe', type: 'color', default: '#16a34a' },
+        { key: 'logo', label: 'Logo', type: 'media', kind: 'image', default: '' }] },
       { key: 'period', label: 'Abschnitt / Info', type: 'text', default: '1. HZ' },
       { key: 'style', label: 'Stil', type: 'select', options: [['bar', 'Leiste'], ['boxes', 'Boxen'], ['compact', 'Kompakt']], default: 'bar' },
+      { key: 'sortTeams', label: 'Ab 3 Teams: nach Punkten sortieren', type: 'toggle', default: false },
       { key: 'showClock', label: 'Spieluhr anzeigen', type: 'toggle', default: true },
       { key: 'timer', label: 'Spieluhr', type: 'timer', default: defaultTimer(45 * 60, 'up') },
       { key: 'format', label: 'Uhrformat', type: 'select', options: TIMER_FORMATS, default: 'mm:ss' },
@@ -414,5 +420,30 @@
     corporate: { name: 'Corporate', primary: '#0ea5e9', secondary: '#0b2545', accent: '#13315c', text: '#ffffff', textOnPrimary: '#ffffff', panel: 'rgba(11,37,69,0.94)', font: '"Segoe UI", Roboto, Arial, sans-serif', headingFont: '"Segoe UI", Roboto, Arial, sans-serif', radius: 2, shadow: 0.3, animation: 'slide', animDuration: 550, safeMargin: 80, fontScale: 100 }
   };
 
-  return { TYPES: T, CATEGORIES, POSITIONS, ANIMATIONS, allFields, defaults, timerElapsed, timerValueMs, formatDuration, formatCountUp, THEME_PRESETS, defaultTimer };
+  /* Spielstand: alle Teams als Liste – A und B wie bisher, ab C aus „Weitere Teams“ */
+  const TEAM_COLORS = ['#16a34a', '#f59e0b', '#9333ea', '#0891b2', '#db2777', '#65a30d'];
+  function scoreTeams(d) {
+    d = d || {};
+    const out = [
+      { key: 'a', name: d.teamA || 'Team A', score: Number(d.scoreA) || 0, color: d.colorA || '#d62839', logo: d.logoA || '' },
+      { key: 'b', name: d.teamB || 'Team B', score: Number(d.scoreB) || 0, color: d.colorB || '#1d4ed8', logo: d.logoB || '' }
+    ];
+    (Array.isArray(d.moreTeams) ? d.moreTeams : []).forEach((t, i) => {
+      t = t || {};
+      const key = String.fromCharCode(99 + i); // c, d, e …
+      out.push({ key, name: t.name || 'Team ' + key.toUpperCase(), score: Number(t.score) || 0, color: t.color || TEAM_COLORS[i % TEAM_COLORS.length], logo: t.logo || '', index: i });
+    });
+    return out;
+  }
+  /* Team-Angabe („a“, „B“, „c“, 3 …) → Position in scoreTeams, −1 = unbekannt */
+  function teamIndex(d, team) {
+    const n = scoreTeams(d).length;
+    const s = String(team === undefined || team === null ? 'a' : team).trim().toLowerCase();
+    let i = -1;
+    if (/^[a-z]$/.test(s)) i = s.charCodeAt(0) - 97;
+    else if (/^\d+$/.test(s)) i = Number(s) - 1;
+    return i >= 0 && i < n ? i : -1;
+  }
+
+  return { TYPES: T, scoreTeams, teamIndex, TEAM_COLORS, CATEGORIES, POSITIONS, ANIMATIONS, allFields, defaults, timerElapsed, timerValueMs, formatDuration, formatCountUp, THEME_PRESETS, defaultTimer };
 });

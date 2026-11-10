@@ -119,9 +119,14 @@
         h('span', { class: 'tv' + (g.data.timer && g.data.timer.running ? ' run' : ''), dataset: { timer: g.id } }, ''));
     }
     if (g.type === 'score') {
-      box.append(h('button', { class: 'btn xs', onclick: () => run('score.add', { id: g.id, team: 'a', delta: 1 }) }, `${g.data.teamA} +1`),
-        h('span', { class: 'tv' }, `${g.data.scoreA}:${g.data.scoreB}`),
-        h('button', { class: 'btn xs', onclick: () => run('score.add', { id: g.id, team: 'b', delta: 1 }) }, `${g.data.teamB} +1`));
+      const teams = T.scoreTeams(g.data);
+      if (teams.length <= 2) {
+        box.append(h('button', { class: 'btn xs', onclick: () => run('score.add', { id: g.id, team: 'a', delta: 1 }) }, `${teams[0].name} +1`),
+          h('span', { class: 'tv' }, `${teams[0].score}:${teams[1].score}`),
+          h('button', { class: 'btn xs', onclick: () => run('score.add', { id: g.id, team: 'b', delta: 1 }) }, `${teams[1].name} +1`));
+      } else {
+        for (const t of teams) box.append(h('button', { class: 'btn xs', title: `${t.name} +1`, style: { borderLeft: `3px solid ${t.color}` }, onclick: () => run('score.add', { id: g.id, team: t.key, delta: 1 }) }, `${t.key.toUpperCase()} ${t.score}`));
+      }
     }
     if ((t.controls || []).includes('step')) {
       const n = g.type === 'lyrics' ? String(g.data.text || '').split(/\n\s*\n/).filter((s) => s.trim()).length : (g.data.items || []).length;
@@ -370,24 +375,39 @@
   }
 
   function scorePanel(g) {
-    const team = (side) => {
-      const val = h('div', { class: 'val' });
-      const name = h('b');
-      const btns = [-1, 1, 2, 3].map((d) => h('button', { class: 'btn sm', onclick: () => run('score.add', { id: g.id, team: side, delta: d }) }, d > 0 ? `+${d}` : String(d)));
-      const el = h('div', { class: 'team' }, name, val, h('div', { class: 'row' }, btns));
-      editorExtras.push(() => {
-        const gg = graphic(g.id); if (!gg) return;
-        const d = gg.data;
-        name.textContent = side === 'a' ? d.teamA : d.teamB;
-        val.textContent = side === 'a' ? d.scoreA : d.scoreB;
-        el.style.setProperty('--tc', side === 'a' ? d.colorA : d.colorB);
-      });
+    // Teamkarten werden neu aufgebaut, wenn Teams dazukommen oder wegfallen
+    const grid = h('div', { class: 'teams' });
+    let sig = '';
+    const card = (t) => {
+      const btns = [-1, 1, 2, 3].map((d) => h('button', { class: 'btn sm', onclick: () => run('score.add', { id: g.id, team: t.key, delta: d }) }, d > 0 ? `+${d}` : String(d)));
+      const el = h('div', { class: 'team', dataset: { team: t.key } }, h('b'), h('div', { class: 'val' }), h('div', { class: 'row' }, btns));
+      if (t.key > 'b') el.appendChild(h('button', { class: 'rm', title: 'Team entfernen', onclick: async () => {
+        if (await UI.confirm('Team entfernen?', `„${t.name}“ wird aus dem Spielstand entfernt.`, 'Entfernen')) run('score.team.remove', { id: g.id, team: t.key });
+      } }, '✕'));
       return el;
     };
-    return h('div', { class: 'scorebox' }, team('a'), team('b'),
-      h('div', { class: 'row', style: { gridColumn: '1 / -1' } },
+    const sync = () => {
+      const gg = graphic(g.id); if (!gg) return;
+      const teams = T.scoreTeams(gg.data);
+      const ns = teams.map((t) => t.key).join();
+      if (ns !== sig) { sig = ns; grid.innerHTML = ''; teams.forEach((t) => grid.appendChild(card(t))); grid.classList.toggle('many', teams.length > 2); }
+      teams.forEach((t) => {
+        const el = grid.querySelector(`.team[data-team="${t.key}"]`); if (!el) return;
+        el.querySelector('b').textContent = `${t.key.toUpperCase()} · ${t.name}`;
+        el.querySelector('.val').textContent = t.score;
+        el.style.setProperty('--tc', t.color);
+      });
+    };
+    editorExtras.push(sync);
+    sync();
+    return h('div', { class: 'scorebox' }, grid,
+      h('div', { class: 'row' },
+        h('button', { class: 'btn sm', onclick: async () => {
+          const name = await UI.prompt('Team hinzufügen', '', 'Name des Teams');
+          if (name !== null && name !== undefined) run('score.team.add', { id: g.id, name });
+        } }, '+ Team'),
         h('button', { class: 'btn sm', onclick: () => run('score.reset', { id: g.id }) }, 'Punkte auf 0'),
-        h('button', { class: 'btn sm', onclick: () => run('score.swap', { id: g.id }) }, '⇄ Seiten tauschen')));
+        h('button', { class: 'btn sm', title: 'Tauscht Team A und B', onclick: () => run('score.swap', { id: g.id }) }, '⇄ A/B tauschen')));
   }
 
   function qaPanel() {
@@ -1358,7 +1378,7 @@
         ex('/api/graphics', 'Liste aller Grafiken'), ex('/api/graphics/:g/show | hide | toggle | preview', 'Ein-/Ausblenden, Vorschau'),
         ex('/api/graphics/:g/update?feld=wert', 'Felder ändern, z. B. name=…&title=… · Grafik umbenennen: rename=… · Ausgänge: outputs=1,2'), ex('/api/graphics/:g/timer-start | timer-pause | timer-toggle | timer-reset', 'Timer steuern'),
         ex('/api/graphics/:g/timer-set?seconds=5:00', 'Timer setzen'), ex('/api/graphics/:g/timer-add?seconds=30', 'Zeit addieren'),
-        ex('/api/graphics/:g/score?team=a&delta=1', 'Punkte'), ex('/api/graphics/:g/next | prev | goto?index=2', 'Songtext / Jetzt-Gleich-Danach'),
+        ex('/api/graphics/:g/score?team=a&delta=1 (Team a, b, c …)', 'Punkte'), ex('/api/graphics/:g/team-add?name=Rot', 'Team hinzufügen'), ex('/api/graphics/:g/next | prev | goto?index=2', 'Songtext / Jetzt-Gleich-Danach'),
         ex('/api/take · /api/hide-all · /api/clear-preview', 'Globale Aktionen'), ex('/api/variables/:name?value=…', 'Variable setzen'),
         ex('/api/lists/:name/next | prev | select?index=…', 'Liste durchschalten'), ex('/api/projects · /api/projects/:id/switch', 'Projekte'),
         ex('POST /api/cmd {"cmd":"…","args":{…}}', 'Jeder interne Befehl'), ex('ws://…/ws?role=control', 'Live-Status per WebSocket'))));

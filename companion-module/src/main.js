@@ -139,7 +139,7 @@ class CueGfxInstance extends InstanceBase {
     const p = this.project;
     if (!p) return '';
     return JSON.stringify([
-      p.id, p.graphics.map((g) => [g.id, g.name, g.type]), Object.keys(p.variables.text), Object.keys(p.variables.lists),
+      p.id, p.graphics.map((g) => [g.id, g.name, g.type, g.type === 'score' && Array.isArray(g.data.moreTeams) ? g.data.moreTeams.length : 0]), Object.keys(p.variables.text), Object.keys(p.variables.lists),
       p.polls.map((x) => [x.id, x.question, x.type]), p.settings.outputs.map((o) => [o.id, o.name])
     ]);
   }

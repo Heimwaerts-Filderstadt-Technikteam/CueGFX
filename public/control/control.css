@@ -128,7 +128,13 @@ main.wide #list-pane { display: none; }
 .bigtime { font: 800 30px var(--mono); letter-spacing: .02em; padding: 2px 10px; background: var(--bg); border-radius: 6px; border: 1px solid var(--line2); min-width: 150px; text-align: center; }
 .bigtime.run { color: var(--pvw); }
 .bigtime.over { color: var(--live); }
-.scorebox { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; grid-column: 1 / -1; }
+.scorebox { display: flex; flex-direction: column; gap: 10px; grid-column: 1 / -1; }
+.scorebox .teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.scorebox .teams.many { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.scorebox .team { position: relative; }
+.scorebox .team .rm { position: absolute; top: 4px; right: 4px; background: none; border: 0; color: var(--fg2); cursor: pointer; font-size: 12px; padding: 2px 5px; border-radius: 4px; }
+.scorebox .team .rm:hover { background: var(--line); color: var(--fg); }
+.scorebox .teams.many .team .val { font-size: 30px; }
 .scorebox .team { background: var(--bg); border-radius: 8px; padding: 10px; text-align: center; border-top: 4px solid var(--tc); }
 .scorebox .team b { display: block; font-size: 12px; color: var(--fg2); }
 .scorebox .team .val { font: 800 40px var(--mono); }

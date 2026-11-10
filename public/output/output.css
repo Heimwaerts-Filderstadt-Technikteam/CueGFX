@@ -196,6 +196,22 @@ body.guides #stage::after {
 .sc.compact .sc-team { min-width: 0; font-size: calc(30px * var(--fs)); padding: 0 16px; }
 .sc.compact .sc-score { width: 70px; font-size: calc(40px * var(--fs)); }
 .sc.compact { flex-direction: row; align-items: stretch; }
+/* Ab drei Teams: Tabelle */
+.sc.multi { flex-direction: column; align-items: flex-start; }
+.sc-table { display: flex; flex-direction: column; gap: 4px; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.sc-line { display: flex; align-items: stretch; }
+.sc-line .sc-team { min-width: 320px; flex: 1; padding: 6px 22px 6px 30px; font-size: calc(32px * var(--fs)); }
+.sc-line .sc-team img { height: 44px; }
+.sc-line .sc-score { width: 96px; padding: 4px 0; font-size: calc(42px * var(--fs)); }
+.sc-line .sc-team.b { flex-direction: row; }
+.sc-line .sc-team.b::before { left: 0; right: auto; }
+.sc.multi.boxes .sc-table { gap: 8px; box-shadow: none; overflow: visible; }
+.sc.multi.boxes .sc-line { border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.sc.multi.compact .sc-line .sc-team { min-width: 0; font-size: calc(24px * var(--fs)); padding: 3px 16px 3px 24px; }
+.sc.multi.compact .sc-line .sc-team img { height: 32px; }
+.sc.multi.compact .sc-line .sc-score { width: 64px; font-size: calc(30px * var(--fs)); }
+.sc.multi.compact .sc-table { gap: 2px; }
+.sc.multi.compact { flex-direction: column; }
 
 /* ---------- Timer & Uhren ---------- */
 .tmr { background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 30px; text-align: center; min-width: 240px; }

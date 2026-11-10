@@ -269,23 +269,32 @@
       el, needsTick: true,
       update(g, c) {
         const d = g.data; data = d;
-        const team = (side) => {
-          const n = side === 'a' ? d.teamA : d.teamB, col = side === 'a' ? d.colorA : d.colorB, logo = side === 'a' ? d.logoA : d.logoB;
-          return `<div class="sc-team ${side}" style="--tc:${esc(col)}">${logo ? `<img src="${esc(c.media(logo))}">` : ''}<span>${esc(c.sub(n))}</span></div>`;
-        };
-        const score = (side) => `<div class="sc-score ${side}" style="--tc:${esc(side === 'a' ? d.colorA : d.colorB)}">${esc(side === 'a' ? d.scoreA : d.scoreB)}</div>`;
+        const teams = T.scoreTeams(d);
         const info = (d.period || d.showClock) ? `<div class="sc-info">${d.period ? `<div>${esc(c.sub(d.period))}</div>` : ''}${d.showClock ? '<div class="clock"></div>' : ''}</div>` : '';
-        el.className = `sc ${d.style}`;
-        setHtml(el, `<div class="sc-row">${team('a')}${score('a')}${score('b')}${team('b')}</div>${info}`);
+        if (teams.length <= 2) {
+          // Klassisch: Heim gegen Gast
+          const team = (t) => `<div class="sc-team ${t.key}" style="--tc:${esc(t.color)}">${t.logo ? `<img src="${esc(c.media(t.logo))}">` : ''}<span>${esc(c.sub(t.name))}</span></div>`;
+          const score = (t) => `<div class="sc-score ${t.key}" data-team="${t.key}" style="--tc:${esc(t.color)}">${esc(t.score)}</div>`;
+          el.className = `sc ${d.style}`;
+          setHtml(el, `<div class="sc-row">${team(teams[0])}${score(teams[0])}${score(teams[1])}${team(teams[1])}</div>${info}`);
+        } else {
+          // Ab drei Teams: Tabelle, optional nach Punkten sortiert
+          const rows = d.sortTeams ? teams.slice().sort((x, y) => y.score - x.score) : teams;
+          el.className = `sc multi ${d.style}`;
+          setHtml(el, `<div class="sc-table">${rows.map((t) => `<div class="sc-line" style="--tc:${esc(t.color)}">`
+            + `<div class="sc-team ${t.key}">${t.logo ? `<img src="${esc(c.media(t.logo))}">` : ''}<span>${esc(c.sub(t.name))}</span></div>`
+            + `<div class="sc-score" data-team="${t.key}">${esc(t.score)}</div></div>`).join('')}</div>${info}`);
+        }
         clockEl = el.querySelector('.clock');
-        for (const side of ['a', 'b']) {
-          const v = side === 'a' ? d.scoreA : d.scoreB;
-          if (last[side] !== undefined && last[side] !== v) {
-            const s = el.querySelector('.sc-score.' + side);
+        const now = {};
+        for (const t of teams) {
+          now[t.key] = t.score;
+          if (last[t.key] !== undefined && last[t.key] !== t.score) {
+            const s = el.querySelector(`.sc-score[data-team="${t.key}"]`);
             if (s) { s.classList.remove('bump'); void s.offsetWidth; s.classList.add('bump'); }
           }
-          last[side] = v;
         }
+        last = now;
       },
       tick(now) { if (clockEl && data) setText(clockEl, timerText(data, now).text); }
     };

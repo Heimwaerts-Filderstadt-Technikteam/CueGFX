@@ -51,6 +51,16 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
   const scoreId = (await cmd('graphic.add', { type: 'score' })).body.result.id;
   await get(`/api/graphics/${scoreId}/score?team=b&delta=3`);
   ok(server.project.graphics.find((g) => g.id === scoreId).data.scoreB === 3, 'Spielstand +3');
+  const sg = () => server.project.graphics.find((g) => g.id === scoreId).data;
+  const ta = await cmd('score.team.add', { id: scoreId, name: 'Grün' });
+  await get(`/api/graphics/${scoreId}/team-add?name=Gelb`);
+  ok(ta.body.result.team === 'c' && sg().moreTeams.length === 2 && sg().moreTeams[1].name === 'Gelb', 'Spielstand: weitere Teams anlegen (Befehl + URL)');
+  await get(`/api/graphics/${scoreId}/score?team=c&delta=5`); await cmd('score.add', { id: scoreId, team: 4, delta: 2 });
+  await cmd('score.set', { id: scoreId, a: 1, d: 9 });
+  ok(sg().moreTeams[0].score === 5 && sg().moreTeams[1].score === 9 && sg().scoreA === 1 && sg().scoreB === 3, 'Spielstand: Punkte für Team C/D (Buchstabe, Nummer, setzen)');
+  ok((await cmd('score.add', { id: scoreId, team: 'z' })).status === 400 && (await cmd('score.team.remove', { id: scoreId, team: 'b' })).status === 400, 'Spielstand: unbekanntes Team / A-B entfernen abgewiesen');
+  await cmd('score.team.remove', { id: scoreId, team: 'c' }); await cmd('score.reset', { id: scoreId });
+  ok(sg().moreTeams.length === 1 && sg().moreTeams[0].name === 'Gelb' && sg().moreTeams[0].score === 0 && sg().scoreB === 0, 'Spielstand: Team entfernen, alle auf 0');
 
   const lyId = (await cmd('graphic.add', { type: 'lyrics' })).body.result.id;
   await get(`/api/graphics/${lyId}/next`);

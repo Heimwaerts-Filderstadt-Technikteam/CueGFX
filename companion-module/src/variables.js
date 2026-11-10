@@ -23,6 +23,14 @@ function graphicKeys(graphics) {
 }
 
 const TIMER_TYPES = ['timer', 'bigtimer', 'speakertimer', 'score'];
+/* Spielstand: alle Teams (A, B wie bisher, ab C aus „Weitere Teams“) */
+function scoreTeams(d) {
+  d = d || {};
+  const out = [{ key: 'a', name: d.teamA || 'Team A', score: Number(d.scoreA) || 0 }, { key: 'b', name: d.teamB || 'Team B', score: Number(d.scoreB) || 0 }];
+  (Array.isArray(d.moreTeams) ? d.moreTeams : []).forEach((t, i) => { const key = String.fromCharCode(99 + i); out.push({ key, name: (t && t.name) || 'Team ' + key.toUpperCase(), score: Number(t && t.score) || 0 }); });
+  return out;
+}
+const TEAM_CHOICES = 'abcdefgh'.split('').map((k) => ({ id: k, label: 'Team ' + k.toUpperCase() + (k === 'a' ? ' (Heim)' : k === 'b' ? ' (Gast)' : '') }));
 
 function timerMs(t, now) {
   if (!t) return 0;
@@ -86,8 +94,11 @@ function buildVariables(self) {
         defs.push({ variableId: `g_${k}_timer_running`, name: `${g.name}: Timer läuft (true/false)` });
       }
       if (g.type === 'score') {
-        defs.push({ variableId: `g_${k}_score_a`, name: `${g.name}: Punkte A` }, { variableId: `g_${k}_score_b`, name: `${g.name}: Punkte B` });
-        defs.push({ variableId: `g_${k}_team_a`, name: `${g.name}: Team A` }, { variableId: `g_${k}_team_b`, name: `${g.name}: Team B` });
+        for (const t of scoreTeams(g.data)) {
+          const K = t.key.toUpperCase();
+          defs.push({ variableId: `g_${k}_score_${t.key}`, name: `${g.name}: Punkte ${K}` }, { variableId: `g_${k}_team_${t.key}`, name: `${g.name}: Team ${K}` });
+        }
+        defs.push({ variableId: `g_${k}_leader`, name: `${g.name}: führendes Team` });
       }
       if (g.type === 'lyrics' || g.type === 'nnt') {
         defs.push({ variableId: `g_${k}_index`, name: `${g.name}: aktuelle Position` }, { variableId: `g_${k}_count`, name: `${g.name}: Anzahl` });
@@ -143,8 +154,10 @@ function computeVariables(self) {
       v[`g_${k}_timer_running`] = String(!!g.data.timer.running);
     }
     if (g.type === 'score') {
-      v[`g_${k}_score_a`] = String(g.data.scoreA); v[`g_${k}_score_b`] = String(g.data.scoreB);
-      v[`g_${k}_team_a`] = String(g.data.teamA); v[`g_${k}_team_b`] = String(g.data.teamB);
+      const teams = scoreTeams(g.data);
+      for (const t of teams) { v[`g_${k}_score_${t.key}`] = String(t.score); v[`g_${k}_team_${t.key}`] = String(t.name); }
+      const best = Math.max(...teams.map((t) => t.score)), lead = teams.filter((t) => t.score === best);
+      v[`g_${k}_leader`] = lead.length === 1 ? lead[0].name : 'Gleichstand';
     }
     const st = stepInfo(g);
     if (st) {
@@ -160,4 +173,4 @@ function computeVariables(self) {
   return v;
 }
 
-module.exports = { oldestPending, buildVariables, computeVariables, graphicKeys, slug, timerMs, TIMER_TYPES };
+module.exports = { oldestPending, buildVariables, computeVariables, graphicKeys, slug, timerMs, TIMER_TYPES, scoreTeams, TEAM_CHOICES };

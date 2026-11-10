@@ -1,6 +1,6 @@
 'use strict';
 /* Aktionen */
-const { TIMER_TYPES, oldestPending } = require('./variables');
+const { TIMER_TYPES, oldestPending, TEAM_CHOICES } = require('./variables');
 
 function choices(self) {
   const g = self.graphics().map((x) => ({ id: x.id, label: `${x.name} (${x.type})` }));
@@ -119,7 +119,7 @@ function buildActions(self) {
     score_add: {
       name: 'Spielstand: Punkte',
       options: [graphicOpt(self, ['score'], 'Spielstand'),
-        { type: 'dropdown', id: 'team', label: 'Team', default: 'a', choices: [{ id: 'a', label: 'Team A (Heim)' }, { id: 'b', label: 'Team B (Gast)' }] },
+        { type: 'dropdown', id: 'team', label: 'Team', default: 'a', choices: TEAM_CHOICES },
         { type: 'number', id: 'delta', label: 'Punkte (+/-)', default: 1, min: -100, max: 100 }],
       callback: async (ev, ctx) => { const id = await resolveId(self, ctx, ev.options.graphic); if (id) await self.run('score.add', { id, team: ev.options.team, delta: ev.options.delta }); }
     },
@@ -129,8 +129,25 @@ function buildActions(self) {
         { type: 'textinput', id: 'a', label: 'Punkte A', default: '0', useVariables: true }, { type: 'textinput', id: 'b', label: 'Punkte B', default: '0', useVariables: true }],
       callback: async (ev, ctx) => { const id = await resolveId(self, ctx, ev.options.graphic); if (id) await self.run('score.set', { id, a: await parse(self, ctx, ev.options.a), b: await parse(self, ctx, ev.options.b) }); }
     },
+    score_set_team: {
+      name: 'Spielstand: Punkte eines Teams setzen',
+      options: [graphicOpt(self, ['score'], 'Spielstand'),
+        { type: 'dropdown', id: 'team', label: 'Team', default: 'c', choices: TEAM_CHOICES },
+        { type: 'textinput', id: 'value', label: 'Punkte', default: '0', useVariables: true }],
+      callback: async (ev, ctx) => { const id = await resolveId(self, ctx, ev.options.graphic); if (id) await self.run('score.set', { id, team: ev.options.team, value: await parse(self, ctx, ev.options.value) }); }
+    },
+    score_team_add: {
+      name: 'Spielstand: Team hinzufügen',
+      options: [graphicOpt(self, ['score'], 'Spielstand'), { type: 'textinput', id: 'name', label: 'Name', default: '', useVariables: true }],
+      callback: async (ev, ctx) => { const id = await resolveId(self, ctx, ev.options.graphic); if (id) await self.run('score.team.add', { id, name: await parse(self, ctx, ev.options.name) }); }
+    },
+    score_team_remove: {
+      name: 'Spielstand: Team entfernen (ab C)',
+      options: [graphicOpt(self, ['score'], 'Spielstand'), { type: 'dropdown', id: 'team', label: 'Team', default: 'c', choices: TEAM_CHOICES.slice(2) }],
+      callback: async (ev, ctx) => { const id = await resolveId(self, ctx, ev.options.graphic); if (id) await self.run('score.team.remove', { id, team: ev.options.team }); }
+    },
     score_reset: { name: 'Spielstand: auf 0', options: [graphicOpt(self, ['score'], 'Spielstand')], callback: forGraphic('score.reset') },
-    score_swap: { name: 'Spielstand: Seiten tauschen', options: [graphicOpt(self, ['score'], 'Spielstand')], callback: forGraphic('score.swap') },
+    score_swap: { name: 'Spielstand: Team A/B tauschen', options: [graphicOpt(self, ['score'], 'Spielstand')], callback: forGraphic('score.swap') },
 
     /* Songtexte / Jetzt-Gleich-Danach */
     step: {

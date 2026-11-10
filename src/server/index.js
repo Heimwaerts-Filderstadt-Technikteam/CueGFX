@@ -656,17 +656,38 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
       /* Spielstand */
       case 'score.add': {
         const g = this.findGraphic(a.id);
-        const key = String(a.team).toLowerCase() === 'b' ? 'scoreB' : 'scoreA';
-        g.data[key] = (Number(g.data[key]) || 0) + (Number(a.delta) || 1);
-        return done({ value: g.data[key] });
+        const i = scoreIdx(g.data, a.team);
+        const v = scoreGet(g.data, i) + (a.delta === undefined || a.delta === '' ? 1 : (Number(a.delta) || 0));
+        scorePut(g.data, i, v);
+        return done({ value: v, team: Types.scoreTeams(g.data)[i].key });
       }
       case 'score.set': {
         const g = this.findGraphic(a.id);
-        if (a.a !== undefined) g.data.scoreA = Number(a.a) || 0;
-        if (a.b !== undefined) g.data.scoreB = Number(a.b) || 0;
+        if (a.team !== undefined) scorePut(g.data, scoreIdx(g.data, a.team), Number(a.value) || 0);
+        // auch direkt: { a: 3, b: 1, c: 7 … }
+        Types.scoreTeams(g.data).forEach((t, i) => { if (a[t.key] !== undefined && a[t.key] !== '') scorePut(g.data, i, Number(a[t.key]) || 0); });
         return done();
       }
-      case 'score.reset': { const g = this.findGraphic(a.id); g.data.scoreA = 0; g.data.scoreB = 0; return done(); }
+      case 'score.reset': {
+        const g = this.findGraphic(a.id);
+        Types.scoreTeams(g.data).forEach((t, i) => scorePut(g.data, i, 0));
+        return done();
+      }
+      case 'score.team.add': {
+        const g = this.findGraphic(a.id);
+        if (!Array.isArray(g.data.moreTeams)) g.data.moreTeams = [];
+        if (g.data.moreTeams.length >= 24) throw Object.assign(new Error('Maximal 26 Teams'), { code: 400 });
+        const key = String.fromCharCode(99 + g.data.moreTeams.length);
+        g.data.moreTeams.push({ name: String(a.name || '').slice(0, 60) || 'Team ' + key.toUpperCase(), score: Number(a.score) || 0, color: a.color || Types.TEAM_COLORS[g.data.moreTeams.length % Types.TEAM_COLORS.length], logo: '' });
+        return done({ team: key });
+      }
+      case 'score.team.remove': {
+        const g = this.findGraphic(a.id);
+        const i = scoreIdx(g.data, a.team);
+        if (i < 2) throw Object.assign(new Error('Team A und B können nicht entfernt werden'), { code: 400 });
+        g.data.moreTeams.splice(i - 2, 1);
+        return done();
+      }
       case 'score.swap': {
         const g = this.findGraphic(a.id); const d = g.data;
         [d.teamA, d.teamB] = [d.teamB, d.teamA]; [d.scoreA, d.scoreB] = [d.scoreB, d.scoreA];
@@ -1084,7 +1105,7 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
       const map = {
         show: 'graphic.show', hide: 'graphic.hide', toggle: 'graphic.toggle', preview: 'graphic.preview',
         'timer-start': 'timer.start', 'timer-pause': 'timer.pause', 'timer-toggle': 'timer.toggle', 'timer-reset': 'timer.reset',
-        'timer-set': 'timer.set', 'timer-add': 'timer.add', score: 'score.add', 'score-set': 'score.set', 'score-reset': 'score.reset',
+        'timer-set': 'timer.set', 'timer-add': 'timer.add', score: 'score.add', 'score-set': 'score.set', 'score-reset': 'score.reset', 'team-add': 'score.team.add', 'team-remove': 'score.team.remove',
         next: 'step', prev: 'step', goto: 'step.goto', duplicate: 'graphic.duplicate'
       };
       if (action === 'update') {
@@ -1269,6 +1290,18 @@ function parseTime(v) {
   const parts = s.split(':').map(Number);
   if (parts.some(isNaN)) return 0;
   return parts.reduce((acc, n) => acc * 60 + n, 0);
+}
+
+/* Spielstand-Helfer: Team per Buchstabe/Nummer finden, Punkte lesen und schreiben */
+function scoreIdx(d, team) {
+  const i = Types.teamIndex(d, team);
+  if (i < 0) throw Object.assign(new Error(`Unbekanntes Team: ${team} (vorhanden: ${Types.scoreTeams(d).map((t) => t.key.toUpperCase()).join(', ')})`), { code: 400 });
+  return i;
+}
+function scoreGet(d, i) { return i === 0 ? Number(d.scoreA) || 0 : i === 1 ? Number(d.scoreB) || 0 : Number((d.moreTeams[i - 2] || {}).score) || 0; }
+function scorePut(d, i, v) {
+  if (i === 0) d.scoreA = v; else if (i === 1) d.scoreB = v;
+  else d.moreTeams[i - 2] = Object.assign({}, d.moreTeams[i - 2], { score: v });
 }
 
 function coerce(type, key, v) {
