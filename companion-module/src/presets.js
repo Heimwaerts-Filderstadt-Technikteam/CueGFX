@@ -61,6 +61,12 @@ function buildPresets(self) {
         P[`scorem_${team}_${g.id}`] = btn('Spielstand', `${g.name} – Team ${team.toUpperCase()} −1`, `${v(`g_${k}_team_${team}`)}\\n−1`, [['score_add', Object.assign({ team, delta: -1 }, opt)]]);
       }
     }
+    if (g.type === 'wheel') {
+      P[`spin_${g.id}`] = btn('Glücksrad', `${g.name} – Drehen`, `🎡\\n${v(`g_${k}_result`)}`, [['wheel_spin', opt]], [['wheel_spinning', opt, { bgcolor: AMBER, color: BLACK }]], { style: { size: 14 } });
+    }
+    if (g.type === 'webpage') {
+      P[`reload_${g.id}`] = btn('Webseite', `${g.name} – Neu laden`, `⟳\\n${name}`, [['web_reload', opt]]);
+    }
     if (g.type === 'lyrics' || g.type === 'nnt') {
       P[`next_${g.id}`] = btn('Songtexte & Programm', `${g.name} – Weiter`, `▶ ${v(`g_${k}_index`)}/${v(`g_${k}_count`)}\\n${v(`g_${k}_next`)}`, [['step', Object.assign({ dir: '1' }, opt)]], [], { style: { size: 7 } });
       P[`prev_${g.id}`] = btn('Songtexte & Programm', `${g.name} – Zurück`, `◀\\n${name}`, [['step', Object.assign({ dir: '-1' }, opt)]]);

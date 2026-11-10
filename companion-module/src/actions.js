@@ -149,6 +149,31 @@ function buildActions(self) {
     score_reset: { name: 'Spielstand: auf 0', options: [graphicOpt(self, ['score'], 'Spielstand')], callback: forGraphic('score.reset') },
     score_swap: { name: 'Spielstand: Team A/B tauschen', options: [graphicOpt(self, ['score'], 'Spielstand')], callback: forGraphic('score.swap') },
 
+    /* Glücksrad */
+    wheel_spin: { name: 'Glücksrad: drehen', options: [graphicOpt(self, ['wheel'], 'Glücksrad')], callback: forGraphic('wheel.spin') },
+    wheel_hide: { name: 'Glücksrad: Ergebnis-Nachricht ausblenden', options: [graphicOpt(self, ['wheel'], 'Glücksrad')], callback: forGraphic('wheel.hideResult') },
+    wheel_refill: { name: 'Glücksrad: alle Felder zurück ins Rad', options: [graphicOpt(self, ['wheel'], 'Glücksrad')], callback: forGraphic('wheel.refill') },
+
+    /* Rangliste */
+    board_add: {
+      name: 'Rangliste: Punkte',
+      options: [graphicOpt(self, ['leaderboard'], 'Rangliste'),
+        { type: 'textinput', id: 'entry', label: 'Eintrag (Name oder Nummer in der Liste)', default: '1', useVariables: true },
+        { type: 'number', id: 'delta', label: 'Punkte (+/-)', default: 1, min: -10000, max: 10000 }],
+      callback: async (ev, ctx) => { const id = await resolveId(self, ctx, ev.options.graphic); if (id) await self.run('board.add', { id, entry: await parse(self, ctx, ev.options.entry), delta: ev.options.delta }); }
+    },
+    board_set: {
+      name: 'Rangliste: Punkte setzen',
+      options: [graphicOpt(self, ['leaderboard'], 'Rangliste'),
+        { type: 'textinput', id: 'entry', label: 'Eintrag (Name oder Nummer in der Liste)', default: '1', useVariables: true },
+        { type: 'textinput', id: 'value', label: 'Punkte', default: '0', useVariables: true }],
+      callback: async (ev, ctx) => { const id = await resolveId(self, ctx, ev.options.graphic); if (id) await self.run('board.set', { id, entry: await parse(self, ctx, ev.options.entry), value: await parse(self, ctx, ev.options.value) }); }
+    },
+    board_reset: { name: 'Rangliste: alle auf 0', options: [graphicOpt(self, ['leaderboard'], 'Rangliste')], callback: forGraphic('board.reset') },
+
+    /* Webseite */
+    web_reload: { name: 'Webseite: neu laden', options: [graphicOpt(self, ['webpage'], 'Webseite')], callback: forGraphic('web.reload') },
+
     /* Songtexte / Jetzt-Gleich-Danach */
     step: {
       name: 'Songtext / Programm: weiter/zurück',

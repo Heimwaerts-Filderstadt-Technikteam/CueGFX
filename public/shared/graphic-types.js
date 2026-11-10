@@ -360,6 +360,73 @@
     ]
   });
 
+  def('wheel', {
+    label: 'Glücksrad', icon: '🎡', category: 'Interaktion', pro: true,
+    controls: ['wheel'],
+    fields: [
+      { key: 'title', label: 'Titel', type: 'text', default: 'Glücksrad' },
+      { key: 'entries', label: 'Felder (eine Zeile pro Feld)', type: 'textarea', default: 'Preis 1\nPreis 2\nNiete\nPreis 3\nNochmal drehen\nPreis 4\nJoker\nPreis 5' },
+      { key: 'colors', label: 'Farben (Komma-getrennt, leer = Theme)', type: 'text', default: '#e11d48, #f59e0b, #16a34a, #2563eb, #9333ea, #0891b2, #db2777, #65a30d' },
+      { key: 'size', label: 'Größe (px)', type: 'number', default: 720, min: 200, max: 1060 },
+      { key: 'spinSeconds', label: 'Drehdauer (s)', type: 'number', default: 6, min: 1, max: 30, step: 0.5 },
+      { key: 'rotations', label: 'Umdrehungen', type: 'number', default: 6, min: 1, max: 30 },
+      { key: 'avoidRepeat', label: 'Nie zweimal hintereinander dasselbe Feld', type: 'toggle', default: true },
+      { key: 'removeWinner', label: 'Gezogenes Feld danach aus dem Rad nehmen', type: 'toggle', default: false },
+      { key: 'showResult', label: 'Ergebnis als Nachricht hervorheben', type: 'toggle', default: true },
+      { key: 'resultLabel', label: 'Überschrift der Nachricht', type: 'text', default: 'Ergebnis', showIf: { showResult: true } },
+      { key: 'resultSeconds', label: 'Nachricht ausblenden nach (s, 0 = bis zum nächsten Drehen)', type: 'number', default: 0, min: 0, showIf: { showResult: true } },
+      { key: 'confetti', label: 'Konfetti beim Ergebnis', type: 'toggle', default: true },
+      { key: 'sound', label: 'Klick-Geräusch (wenn der Ausgang Ton hat)', type: 'toggle', default: true },
+      { key: 'resultVar', label: 'Ergebnis in Variable schreiben (Name, optional)', type: 'text', default: '' },
+      ...commonPositioned('center')
+    ]
+  });
+
+  def('leaderboard', {
+    label: 'Rangliste', icon: '🏅', category: 'Sport', pro: true,
+    controls: ['board'],
+    fields: [
+      { key: 'title', label: 'Titel', type: 'text', default: 'Rangliste' },
+      { key: 'subtitle', label: 'Untertitel', type: 'text', default: '' },
+      { key: 'entries', label: 'Einträge', type: 'list', itemLabel: 'Eintrag', default: [
+        { name: 'Team Rot', score: 42, image: '', note: '' }, { name: 'Team Blau', score: 37, image: '', note: '' }, { name: 'Team Grün', score: 37, image: '', note: '' },
+        { name: 'Team Gelb', score: 28, image: '', note: '' }, { name: 'Team Lila', score: 15, image: '', note: '' }], fields: [
+        { key: 'name', label: 'Name', type: 'text', default: '' },
+        { key: 'score', label: 'Punkte', type: 'number', default: 0 },
+        { key: 'note', label: 'Zusatz (optional)', type: 'text', default: '' },
+        { key: 'image', label: 'Bild / Flagge', type: 'media', kind: 'image', default: '' }] },
+      { key: 'sort', label: 'Sortierung', type: 'select', options: [['desc', 'Höchste Punkte oben'], ['asc', 'Niedrigste oben (z. B. Zeiten)'], ['none', 'Wie eingegeben']], default: 'desc' },
+      { key: 'ties', label: 'Gleichstand', type: 'select', options: [['shared', 'Gleicher Platz (1, 2, 2, 4)'], ['dense', 'Gleicher Platz, lückenlos (1, 2, 2, 3)'], ['seq', 'Fortlaufend (1, 2, 3, 4)']], default: 'shared' },
+      { key: 'lines', label: 'Anzahl Zeilen', type: 'number', default: 10, min: 1, max: 30 },
+      { key: 'columns', label: 'Spalten', type: 'select', options: [['1', 'Eine'], ['2', 'Zwei']], default: '1' },
+      { key: 'showRank', label: 'Platz anzeigen', type: 'toggle', default: true },
+      { key: 'medals', label: 'Top 3 hervorheben (Gold, Silber, Bronze)', type: 'toggle', default: true },
+      { key: 'scoreSuffix', label: 'Einheit hinter den Punkten', type: 'text', default: '' },
+      { key: 'width', label: 'Breite (px)', type: 'number', default: 900, min: 300, max: 1880 },
+      ...commonPositioned('center')
+    ]
+  });
+
+  def('webpage', {
+    label: 'Webseite / Webvideo', icon: '🌐', category: 'Medien', pro: true,
+    controls: ['web'],
+    fields: [
+      { key: 'url', label: 'Adresse (Webseite, YouTube, Vimeo, Twitch …)', type: 'text', default: 'https://example.com' },
+      { key: 'embed', label: 'Video-Links automatisch als Player einbetten', type: 'toggle', default: true },
+      { key: 'autoplay', label: 'Video automatisch abspielen', type: 'toggle', default: true, showIf: { embed: true } },
+      { key: 'muted', label: 'Video stumm', type: 'toggle', default: false, showIf: { embed: true } },
+      { key: 'fullscreen', label: 'Vollbild', type: 'toggle', default: true },
+      { key: 'width', label: 'Breite (px, wenn nicht Vollbild)', type: 'number', default: 1280, min: 100, max: 3840, showIf: { fullscreen: false } },
+      { key: 'height', label: 'Höhe (px, wenn nicht Vollbild)', type: 'number', default: 720, min: 100, max: 2160, showIf: { fullscreen: false } },
+      { key: 'zoom', label: 'Seiten-Zoom %', type: 'number', default: 100, min: 25, max: 400, step: 5 },
+      { key: 'radius', label: 'Eckenradius (px)', type: 'number', default: 0, min: 0, showIf: { fullscreen: false } },
+      { key: 'transparent', label: 'Transparenter Hintergrund (für Overlay-Seiten)', type: 'toggle', default: true },
+      { key: 'refresh', label: 'Automatisch neu laden alle (s, 0 = nie)', type: 'number', default: 0, min: 0 },
+      { key: 'reloadKey', label: 'Neu laden', type: 'number', default: 0, hidden: true },
+      ...commonPositioned('center')
+    ]
+  });
+
   def('custom', {
     label: 'Eigene Grafik (Builder)', icon: '✏', category: 'Builder', pro: true, fullscreen: true,
     fields: [
@@ -445,5 +512,31 @@
     return i >= 0 && i < n ? i : -1;
   }
 
-  return { TYPES: T, scoreTeams, teamIndex, TEAM_COLORS, CATEGORIES, POSITIONS, ANIMATIONS, allFields, defaults, timerElapsed, timerValueMs, formatDuration, formatCountUp, THEME_PRESETS, defaultTimer };
+  /* Glücksrad: Felder, die gerade im Rad sind (ohne bereits gezogene, wenn „aus dem Rad nehmen“ an ist) */
+  function wheelEntries(d) {
+    d = d || {};
+    const all = String(d.entries || '').split('\n').map((x) => x.trim()).filter(Boolean);
+    const out = ((d.wheel && d.wheel.excluded) || []).slice();
+    const left = all.filter((x) => { const i = out.indexOf(x); if (i >= 0) { out.splice(i, 1); return false; } return true; });
+    return left;
+  }
+
+  /* Rangliste: sortierte Zeilen mit Platz; idx = Position in der Eingabeliste */
+  function boardRows(d) {
+    d = d || {};
+    const rows = (Array.isArray(d.entries) ? d.entries : []).map((e, idx) => ({ idx, name: (e && e.name) || '', score: Number(e && e.score) || 0, note: (e && e.note) || '', image: (e && e.image) || '' }));
+    if (d.sort === 'desc') rows.sort((a, b) => b.score - a.score || a.idx - b.idx);
+    else if (d.sort === 'asc') rows.sort((a, b) => a.score - b.score || a.idx - b.idx);
+    let dense = 0;
+    rows.forEach((r, i) => {
+      const prev = rows[i - 1];
+      const tie = d.sort !== 'none' && prev && prev.score === r.score;
+      if (!tie) dense++;
+      r.rank = d.ties === 'seq' || d.sort === 'none' ? i + 1 : tie ? prev.rank : d.ties === 'dense' ? dense : i + 1;
+      r.tie = !!tie || !!(rows[i + 1] && d.sort !== 'none' && rows[i + 1].score === r.score && d.ties !== 'seq');
+    });
+    return rows;
+  }
+
+  return { TYPES: T, scoreTeams, teamIndex, TEAM_COLORS, wheelEntries, boardRows, CATEGORIES, POSITIONS, ANIMATIONS, allFields, defaults, timerElapsed, timerValueMs, formatDuration, formatCountUp, THEME_PRESETS, defaultTimer };
 });

@@ -219,6 +219,19 @@ app.whenReady().then(async () => {
   } else log('NDI:', ndi.loadError);
   // Audiogeräte auflisten und auswählen dürfen (nur eigene Seiten)
   const own = (wc) => { try { return wc && wc.getURL().startsWith(baseUrl()); } catch (_) { return false; } };
+  // Grafik „Webseite“: Seiten, die das Einbetten per Header verbieten (X-Frame-Options / frame-ancestors),
+  // trotzdem in den Ausgängen anzeigen. Gilt nur für eingebettete Rahmen, nicht für Hauptfenster.
+  session.defaultSession.webRequest.onHeadersReceived((det, cb) => {
+    if (det.resourceType !== 'subFrame' || !det.responseHeaders) return cb({});
+    const h = {};
+    for (const [k, v] of Object.entries(det.responseHeaders)) {
+      const lk = k.toLowerCase();
+      if (lk === 'x-frame-options') continue;
+      if (lk === 'content-security-policy') { h[k] = v.map((x) => x.split(';').filter((d) => !/^\s*frame-ancestors/i.test(d)).join(';')); continue; }
+      h[k] = v;
+    }
+    cb({ responseHeaders: h });
+  });
   session.defaultSession.setPermissionCheckHandler((wc, perm) => (['media', 'speaker-selection', 'audioCapture'].includes(perm) ? !wc || own(wc) : true));
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(['media', 'speaker-selection', 'audioCapture', 'fullscreen'].includes(perm) && own(wc)));
   server.on('audioOut', (cfg) => updateAudioWindow(cfg));

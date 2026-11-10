@@ -75,6 +75,7 @@ class CueServer extends EventEmitter {
         this.http.off('error', reject);
         this._restartSheets();
         this._restoreAutoHide();
+        for (const g of this.project.graphics) if (g.type === 'wheel' && g.data.wheel && g.data.wheel.spinning) this._wheelSchedule(g);
         this.hwTimer = setInterval(() => this._pushHardware(), 1000);
         this.chat.init();
         this._startPublic();
@@ -91,6 +92,7 @@ class CueServer extends EventEmitter {
     clearInterval(this.hwTimer);
     for (const t of this.sheetTimers.values()) clearInterval(t);
     for (const t of this.autoHideTimers.values()) clearTimeout(t);
+    for (const t of (this.wheelTimers || new Map()).values()) clearTimeout(t);
     clearTimeout(this._chatTimer);
     this.chat.stopAll();
     this.store.saveProjectNow();
@@ -563,6 +565,18 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
     return 0;
   }
 
+  /* Glücksrad: Ergebnis festhalten, wenn die Drehung vorbei ist */
+  _wheelSchedule(g) {
+    this.wheelTimers = this.wheelTimers || new Map();
+    clearTimeout(this.wheelTimers.get(g.id));
+    const w = g.data.wheel;
+    const ms = Math.max(0, w.startedAt + w.duration - Date.now());
+    this.wheelTimers.set(g.id, setTimeout(() => {
+      this.wheelTimers.delete(g.id);
+      try { this.exec('wheel.finish', { id: g.id, spinId: w.spinId }); } catch (_) {}
+    }, ms));
+  }
+
   /* ---------- Befehle (gemeinsam für WebSocket und REST) ---------- */
   exec(cmd, a = {}) {
     const p = this.project;
@@ -694,6 +708,69 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
         [d.colorA, d.colorB] = [d.colorB, d.colorA]; [d.logoA, d.logoB] = [d.logoB, d.logoA];
         return done();
       }
+
+      /* Glücksrad */
+      case 'wheel.spin': {
+        const g = this.findGraphic(a.id); const d = g.data;
+        const w = d.wheel = Object.assign({ history: [], excluded: [], angle: 0 }, d.wheel || {});
+        if (w.spinning && now < w.startedAt + w.duration + 500) throw new HttpError(409, 'Das Rad dreht sich noch');
+        let list = Types.wheelEntries(d);
+        if (!list.length && w.excluded.length) { w.excluded = []; list = Types.wheelEntries(d); } // alle gezogen → neu befüllen
+        if (!list.length) throw new HttpError(400, 'Das Glücksrad hat keine Felder');
+        let cand = list.map((_, i) => i);
+        if (d.avoidRepeat !== false && list.length > 1 && w.result) { const c = cand.filter((i) => list[i] !== w.result); if (c.length) cand = c; }
+        const i = cand[require('crypto').randomInt(cand.length)];
+        const n = list.length, seg = 360 / n;
+        const from = ((Number(w.angle) || 0) % 360 + 360) % 360;
+        const target = ((360 - (i + 0.15 + Math.random() * 0.7) * seg) % 360 + 360) % 360;
+        const delta = ((target - from) % 360 + 360) % 360;
+        const secs = Math.max(1, Math.min(30, Number(d.spinSeconds) || 6));
+        Object.assign(w, {
+          spinId: uid(6), entries: list, target: i, from, to: from + Math.max(1, Math.round(Number(d.rotations) || 6)) * 360 + delta,
+          startedAt: now + 200, duration: secs * 1000, spinning: true, result: '', resultAt: 0, resultHidden: false
+        });
+        this._wheelSchedule(g);
+        return done({ spinning: true, spinId: w.spinId, ms: w.duration + 200 });
+      }
+      case 'wheel.finish': {
+        const g = this.findGraphic(a.id); const d = g.data; const w = d.wheel;
+        if (!w || !w.spinning || (a.spinId && a.spinId !== w.spinId)) return false;
+        const label = w.entries[w.target];
+        Object.assign(w, { spinning: false, result: label, resultAt: now, angle: w.to % 360 });
+        w.from = w.to = w.angle;
+        w.history = [{ label, ts: now }].concat(w.history || []).slice(0, 500);
+        if (d.removeWinner) w.excluded = (w.excluded || []).concat([label]);
+        const vn = cleanVarName(d.resultVar || '');
+        if (d.resultVar && vn) p.variables.text[vn] = label;
+        return done({ result: label });
+      }
+      case 'wheel.hideResult': { const g = this.findGraphic(a.id); if (g.data.wheel) g.data.wheel.resultHidden = true; return done(); }
+      case 'wheel.refill': { const g = this.findGraphic(a.id); if (g.data.wheel) g.data.wheel.excluded = []; return done(); }
+      case 'wheel.history.clear': { const g = this.findGraphic(a.id); if (g.data.wheel) g.data.wheel.history = []; return done(); }
+
+      /* Rangliste */
+      case 'board.add': case 'board.set': {
+        const g = this.findGraphic(a.id); const e = boardEntry(g.data, a.entry);
+        const v = cmd === 'board.set' ? Number(a.value) || 0 : (Number(e.score) || 0) + (a.delta === undefined || a.delta === '' ? 1 : (Number(a.delta) || 0));
+        e.score = Math.round(v * 1000) / 1000;
+        return done({ value: e.score });
+      }
+      case 'board.reset': { const g = this.findGraphic(a.id); (g.data.entries || []).forEach((e) => { e.score = 0; }); return done(); }
+      case 'board.entry.add': {
+        const g = this.findGraphic(a.id);
+        if (!Array.isArray(g.data.entries)) g.data.entries = [];
+        if (g.data.entries.length >= 100) throw new HttpError(400, 'Maximal 100 Einträge');
+        g.data.entries.push({ name: String(a.name || '').slice(0, 80) || `Eintrag ${g.data.entries.length + 1}`, score: Number(a.score) || 0, note: '', image: '' });
+        return done({ entry: g.data.entries.length });
+      }
+      case 'board.entry.remove': {
+        const g = this.findGraphic(a.id); const e = boardEntry(g.data, a.entry);
+        g.data.entries.splice(g.data.entries.indexOf(e), 1);
+        return done();
+      }
+
+      /* Webseite */
+      case 'web.reload': { const g = this.findGraphic(a.id); g.data.reloadKey = (Number(g.data.reloadKey) || 0) + 1; return done(); }
 
       /* Schritt-Grafiken (Lyrics, Jetzt/Gleich/Danach) */
       case 'step': case 'step.goto': {
@@ -1106,6 +1183,7 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
         show: 'graphic.show', hide: 'graphic.hide', toggle: 'graphic.toggle', preview: 'graphic.preview',
         'timer-start': 'timer.start', 'timer-pause': 'timer.pause', 'timer-toggle': 'timer.toggle', 'timer-reset': 'timer.reset',
         'timer-set': 'timer.set', 'timer-add': 'timer.add', score: 'score.add', 'score-set': 'score.set', 'score-reset': 'score.reset', 'team-add': 'score.team.add', 'team-remove': 'score.team.remove',
+        spin: 'wheel.spin', 'wheel-refill': 'wheel.refill', 'wheel-hide': 'wheel.hideResult', board: 'board.add', 'board-set': 'board.set', 'board-reset': 'board.reset', 'board-entry': 'board.entry.add', reload: 'web.reload',
         next: 'step', prev: 'step', goto: 'step.goto', duplicate: 'graphic.duplicate'
       };
       if (action === 'update') {
@@ -1290,6 +1368,16 @@ function parseTime(v) {
   const parts = s.split(':').map(Number);
   if (parts.some(isNaN)) return 0;
   return parts.reduce((acc, n) => acc * 60 + n, 0);
+}
+
+/* Rangliste: Eintrag per Nummer (1 = erster in der Liste) oder Name */
+function boardEntry(d, ref) {
+  const list = Array.isArray(d.entries) ? d.entries : [];
+  const s = String(ref === undefined || ref === null ? '' : ref).trim();
+  let e = /^\d+$/.test(s) ? list[Number(s) - 1] : null;
+  if (!e && s) e = list.find((x) => String(x.name || '').toLowerCase() === s.toLowerCase());
+  if (!e) throw new HttpError(400, `Eintrag nicht gefunden: ${s || '(leer)'}`);
+  return e;
 }
 
 /* Spielstand-Helfer: Team per Buchstabe/Nummer finden, Punkte lesen und schreiben */

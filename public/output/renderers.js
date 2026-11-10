@@ -300,6 +300,235 @@
     };
   };
 
+  /* ---------------- Glücksrad ---------------- */
+  R.wheel = () => {
+    const el = div('wh', '<div class="wh-title"></div><div class="wh-box"><canvas class="wh-fx"></canvas><svg class="wh-svg" viewBox="-520 -520 1040 1040"><g class="wh-rot"></g><g class="wh-hub"></g><path class="wh-ptr" d="M0,-468 L-34,-536 L34,-536 Z"/></svg><div class="wh-res"><small></small><b></b></div></div>');
+    const titleEl = el.querySelector('.wh-title'), box = el.querySelector('.wh-box'), rot = el.querySelector('.wh-rot'), hub = el.querySelector('.wh-hub');
+    const resEl = el.querySelector('.wh-res'), resSmall = resEl.querySelector('small'), resBig = resEl.querySelector('b');
+    const fx = el.querySelector('.wh-fx'), fxc = fx.getContext('2d');
+    let d = null, ctxRef = null, key = '', list = [], lastSeg = -1, ac = null, parts = [], lastFx = 0, burstFor = '', resultShown = '';
+    const ease = (p) => 1 - Math.pow(1 - p, 4);
+    const angleAt = (w, now) => {
+      if (!w) return 0;
+      if (!w.spinning) return Number(w.angle) || 0;
+      const p = Math.max(0, Math.min(1, (now - w.startedAt) / (w.duration || 1)));
+      return w.from + (w.to - w.from) * ease(p);
+    };
+    const palette = () => {
+      const cs = String((d && d.colors) || '').split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean);
+      if (cs.length) return cs;
+      const st = getComputedStyle(document.documentElement);
+      return ['--primary', '--accent', '--secondary'].map((v) => st.getPropertyValue(v).trim()).filter(Boolean).concat(['#16a34a', '#2563eb', '#9333ea']);
+    };
+    const textOn = (hex) => {
+      const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})/i.exec(hex || '');
+      if (!m) return '#fff';
+      const [r, g, b] = m.slice(1).map((x) => parseInt(x, 16));
+      return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#111' : '#fff';
+    };
+    const draw = () => {
+      const n = list.length, cols = palette(), R0 = 460;
+      if (!n) { rot.innerHTML = '<circle r="460" fill="#333"/><text text-anchor="middle" dy="12" fill="#fff" font-size="40">Keine Felder</text>'; return; }
+      const seg = 360 / n;
+      // Schriftgröße: passt in die Segmentbreite und in die Strecke zwischen Nabe und Rand
+      const base = Math.max(16, Math.min(64, 2 * Math.PI * 300 / n * 0.62));
+      const fsFor = (t) => Math.max(14, Math.min(base, 340 / (Math.max(t.length, 3) * 0.6)));
+      let html = '';
+      list.forEach((label, i) => {
+        const a0 = (i * seg - 90) * Math.PI / 180, a1 = ((i + 1) * seg - 90) * Math.PI / 180;
+        const c = (n > 1 && i === n - 1 && (n - 1) % cols.length === 0) ? cols[1 % cols.length] : cols[i % cols.length]; // Nachbarn nie gleichfarbig
+        const large = seg > 180 ? 1 : 0;
+        const path = n === 1 ? `<circle r="${R0}" fill="${esc(c)}"/>` : `<path d="M0,0 L${(Math.cos(a0) * R0).toFixed(1)},${(Math.sin(a0) * R0).toFixed(1)} A${R0},${R0} 0 ${large} 1 ${(Math.cos(a1) * R0).toFixed(1)},${(Math.sin(a1) * R0).toFixed(1)} Z" fill="${esc(c)}"/>`;
+        const mid = i * seg + seg / 2;
+        const txt = label.length > 28 ? label.slice(0, 27) + '…' : label;
+        html += `${path}<g transform="rotate(${mid - 90})"><text x="${R0 - 34}" y="0" dy="0.35em" text-anchor="end" font-size="${fsFor(txt).toFixed(0)}" fill="${textOn(c)}">${esc(txt)}</text></g>`;
+      });
+      html += `<circle r="${R0}" class="wh-rim"/>`;
+      for (let i = 0; i < n; i++) { const a = (i * seg - 90) * Math.PI / 180; html += `<circle class="wh-pin" cx="${(Math.cos(a) * (R0 - 8)).toFixed(1)}" cy="${(Math.sin(a) * (R0 - 8)).toFixed(1)}" r="7"/>`; }
+      rot.innerHTML = html;
+      hub.innerHTML = '<circle r="62" class="wh-hub-o"/><circle r="40" class="wh-hub-i"/>';
+    };
+    const click = () => {
+      if (!d || !d.sound || !ctxRef || !ctxRef.audio) return;
+      try {
+        ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+        const o = ac.createOscillator(), gn = ac.createGain(), t = ac.currentTime;
+        o.type = 'square'; o.frequency.setValueAtTime(1800, t); o.frequency.exponentialRampToValueAtTime(600, t + 0.03);
+        gn.gain.setValueAtTime(0.18, t); gn.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+        o.connect(gn); gn.connect(ac.destination); o.start(t); o.stop(t + 0.06);
+      } catch (_) {}
+    };
+    const burst = () => {
+      const cols = palette().concat(['#ffd166', '#ffffff']);
+      const W = fx.width, H = fx.height;
+      for (let i = 0; i < 160; i++) {
+        const a = Math.random() * Math.PI * 2, v = 300 + Math.random() * 900;
+        parts.push({ x: W / 2, y: H / 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 300, w: 10 + Math.random() * 12, h: 6 + Math.random() * 8, r: Math.random() * 6, vr: (Math.random() - 0.5) * 12, col: cols[(Math.random() * cols.length) | 0], life: 1 });
+      }
+    };
+    return {
+      el, needsTick: true,
+      update(g, c) {
+        d = g.data; ctxRef = c;
+        const w = d.wheel || {};
+        const S = Math.max(200, Math.min(1060, Number(d.size) || 720));
+        el.style.setProperty('--whs', S + 'px');
+        fx.width = fx.height = Math.round(S * 1.7);
+        setText(titleEl, c.sub(d.title || '')); titleEl.style.display = d.title ? '' : 'none';
+        list = w.spinning && Array.isArray(w.entries) ? w.entries : T.wheelEntries(d);
+        const k = JSON.stringify([list, d.colors]);
+        if (k !== key) { key = k; draw(); }
+      },
+      tick(now) {
+        if (!d) return;
+        const w = d.wheel || {};
+        const ang = angleAt(w, now);
+        rot.setAttribute('transform', `rotate(${ang.toFixed(2)})`);
+        // Klick, wenn ein Stift den Zeiger passiert
+        if (list.length > 1 && w.spinning) {
+          const segIdx = Math.floor((((-ang) % 360 + 360) % 360) / (360 / list.length));
+          if (segIdx !== lastSeg) { if (lastSeg !== -1) click(); lastSeg = segIdx; }
+        } else lastSeg = -1;
+        // Ergebnis-Nachricht
+        const secs = Number(d.resultSeconds) || 0;
+        const show = !!(d.showResult !== false && w.result && !w.spinning && !w.resultHidden && (!secs || now < w.resultAt + secs * 1000));
+        if (show) {
+          setText(resSmall, ctxRef ? ctxRef.sub(d.resultLabel || '') : (d.resultLabel || '')); resSmall.style.display = d.resultLabel ? '' : 'none';
+          setText(resBig, w.result);
+        }
+        const id = show ? w.spinId + '|' + w.result : '';
+        if (id !== resultShown) { resultShown = id; resEl.classList.toggle('on', show); }
+        if (w.result && !w.spinning && d.confetti !== false && burstFor !== w.spinId && now - w.resultAt < 3000) { burstFor = w.spinId; burst(); }
+        if (w.spinning) burstFor = '';
+        // Konfetti
+        if (parts.length) {
+          const dt = lastFx ? Math.min(0.05, (now - lastFx) / 1000) : 0.016;
+          fxc.clearRect(0, 0, fx.width, fx.height);
+          parts = parts.filter((p) => {
+            p.vy += 900 * dt; p.vx *= 0.985; p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt; p.life -= dt * 0.45;
+            fxc.save(); fxc.globalAlpha = Math.max(0, Math.min(1, p.life * 1.5)); fxc.translate(p.x, p.y); fxc.rotate(p.r); fxc.fillStyle = p.col; fxc.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); fxc.restore();
+            return p.life > 0 && p.y < fx.height + 40;
+          });
+          if (!parts.length) fxc.clearRect(0, 0, fx.width, fx.height);
+        }
+        lastFx = now;
+      },
+      destroy() { try { ac && ac.close(); } catch (_) {} }
+    };
+  };
+
+  /* ---------------- Rangliste ---------------- */
+  R.leaderboard = () => {
+    const el = div('lb', '<div class="lb-head"><div class="lb-title"></div><div class="lb-sub"></div></div><div class="lb-list"></div>');
+    const head = el.querySelector('.lb-head'), titleEl = el.querySelector('.lb-title'), subEl = el.querySelector('.lb-sub'), listEl = el.querySelector('.lb-list');
+    const rowsByKey = new Map(), lastScore = new Map();
+    return {
+      el,
+      update(g, c) {
+        const d = g.data;
+        el.style.width = (Number(d.width) || 900) + 'px';
+        el.classList.toggle('two', String(d.columns) === '2');
+        el.classList.toggle('medals', d.medals !== false);
+        el.classList.toggle('norank', d.showRank === false);
+        setText(titleEl, c.sub(d.title || '')); setText(subEl, c.sub(d.subtitle || ''));
+        titleEl.style.display = d.title ? '' : 'none'; subEl.style.display = d.subtitle ? '' : 'none';
+        head.style.display = d.title || d.subtitle ? '' : 'none';
+        const rows = T.boardRows(d).slice(0, Math.max(1, Number(d.lines) || 10));
+        // Positionen vorher merken (für die Verschiebe-Animation)
+        const before = new Map();
+        for (const [k, r] of rowsByKey) before.set(k, { x: r.offsetLeft, y: r.offsetTop });
+        const seen = new Map(), keep = new Set();
+        const ordered = rows.map((r) => {
+          const n = (seen.get(r.name) || 0) + 1; seen.set(r.name, n);
+          const k = r.name + '#' + n;
+          keep.add(k);
+          let row = rowsByKey.get(k);
+          if (!row) { row = div('lb-row', '<div class="lb-rank"></div><div class="lb-img"></div><div class="lb-name"><span></span><small></small></div><div class="lb-score"></div>'); rowsByKey.set(k, row); }
+          row.dataset.rank = r.rank;
+          setText(row.querySelector('.lb-rank'), String(r.rank));
+          const imgBox = row.querySelector('.lb-img'), src = r.image ? c.media(r.image) : '';
+          if (imgBox.dataset.src !== src) { imgBox.dataset.src = src; imgBox.innerHTML = src ? `<img src="${esc(src)}">` : ''; }
+          imgBox.style.display = src ? '' : 'none';
+          setText(row.querySelector('.lb-name span'), c.sub(r.name));
+          const sm = row.querySelector('.lb-name small'); setText(sm, c.sub(r.note)); sm.style.display = r.note ? '' : 'none';
+          const sc = row.querySelector('.lb-score');
+          setText(sc, `${r.score}${d.scoreSuffix ? ' ' + d.scoreSuffix : ''}`);
+          if (lastScore.has(k) && lastScore.get(k) !== r.score) { sc.classList.remove('bump'); void sc.offsetWidth; sc.classList.add('bump'); }
+          lastScore.set(k, r.score);
+          return { k, row };
+        });
+        for (const [k, r] of rowsByKey) if (!keep.has(k)) { r.remove(); rowsByKey.delete(k); lastScore.delete(k); }
+        const half = Math.ceil(ordered.length / 2);
+        listEl.style.gridTemplateRows = String(d.columns) === '2' ? `repeat(${half}, auto)` : '';
+        ordered.forEach(({ row }) => listEl.appendChild(row));
+        // FLIP: von alter zu neuer Position gleiten
+        for (const { k, row } of ordered) {
+          const b = before.get(k);
+          if (!b) { row.classList.remove('enter'); void row.offsetWidth; row.classList.add('enter'); continue; }
+          const dx = b.x - row.offsetLeft, dy = b.y - row.offsetTop;
+          if (!dx && !dy) continue;
+          row.style.transition = 'none'; row.style.transform = `translate(${dx}px, ${dy}px)`;
+          void row.offsetWidth;
+          row.style.transition = ''; row.style.transform = '';
+        }
+      }
+    };
+  };
+
+  /* ---------------- Webseite / Webvideo ---------------- */
+  const embedUrl = (raw, d, c) => {
+    let u = String(raw || '').trim();
+    if (!u) return '';
+    if (!/^[a-z][\w+.-]*:/i.test(u)) u = 'https://' + u;
+    if (d.embed === false) return u;
+    const mute = d.muted || !c.audio ? 1 : 0, auto = d.autoplay === false ? 0 : 1;
+    let m = u.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|live\/|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/i);
+    if (m) {
+      const t = (u.match(/[?&]t=(\d+)/) || [])[1];
+      return `https://www.youtube.com/embed/${m[1]}?autoplay=${auto}&mute=${mute}&controls=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3${t ? '&start=' + t : ''}`;
+    }
+    m = u.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
+    if (m) return `https://player.vimeo.com/video/${m[1]}?autoplay=${auto}&muted=${mute}&controls=0&title=0&byline=0&portrait=0`;
+    m = u.match(/twitch\.tv\/(?:videos\/(\d+)|([\w]+))\/?$/i);
+    if (m && !/player\.twitch/.test(u)) return `https://player.twitch.tv/?${m[1] ? 'video=' + m[1] : 'channel=' + m[2]}&parent=${encodeURIComponent(location.hostname)}&autoplay=${auto ? 'true' : 'false'}&muted=${mute ? 'true' : 'false'}`;
+    return u;
+  };
+  R.webpage = () => {
+    const el = div('web');
+    let frame = null, src = '', reloadKey = null, refreshTimer = null, refreshSecs = 0;
+    const load = (url) => {
+      if (frame) frame.remove();
+      frame = document.createElement('iframe');
+      frame.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture; fullscreen');
+      frame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+      frame.setAttribute('allowtransparency', 'true');
+      frame.setAttribute('scrolling', 'no');
+      frame.src = url || 'about:blank';
+      el.appendChild(frame);
+    };
+    return {
+      el,
+      update(g, c) {
+        const d = g.data;
+        c.setFull(!!d.fullscreen);
+        const z = Math.max(25, Math.min(400, Number(d.zoom) || 100)) / 100;
+        el.classList.toggle('full', !!d.fullscreen);
+        el.classList.toggle('opaque', d.transparent === false);
+        if (d.fullscreen) { el.style.width = ''; el.style.height = ''; el.style.borderRadius = ''; }
+        else { el.style.width = (Number(d.width) || 1280) + 'px'; el.style.height = (Number(d.height) || 720) + 'px'; el.style.borderRadius = (Number(d.radius) || 0) + 'px'; }
+        el.style.setProperty('--wz', z);
+        const url = embedUrl(c.sub(d.url), d, c);
+        if (url !== src || d.reloadKey !== reloadKey) { src = url; reloadKey = d.reloadKey; load(url); }
+        const r = Math.max(0, Number(d.refresh) || 0);
+        if (r !== refreshSecs) {
+          refreshSecs = r; clearInterval(refreshTimer); refreshTimer = null;
+          if (r) refreshTimer = setInterval(() => load(src), Math.max(5, r) * 1000);
+        }
+      },
+      destroy() { clearInterval(refreshTimer); if (frame) frame.src = 'about:blank'; }
+    };
+  };
+
   /* ---------------- Timer ---------------- */
   R.timer = () => {
     const el = div('tmr', '<div class="tl"></div><div class="tv"></div>');

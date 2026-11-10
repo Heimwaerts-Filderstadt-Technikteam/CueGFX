@@ -33,6 +33,10 @@ function buildFeedbacks(self) {
       type: 'boolean', name: 'Timer läuft', defaultStyle: { bgcolor: GREEN, color: WHITE },
       options: [gopt(TIMER_TYPES)], callback: (fb) => { const g = find(fb); return !!(g && g.data.timer && g.data.timer.running); }
     },
+    wheel_spinning: {
+      type: 'boolean', name: 'Glücksrad dreht sich', defaultStyle: { bgcolor: AMBER, color: BLACK },
+      options: [gopt(['wheel'])], callback: (fb) => { const g = find(fb); const w = g && g.data.wheel; return !!(w && w.spinning && self.now() < (w.startedAt || 0) + (w.duration || 0) + 1000); }
+    },
     timer_below: {
       type: 'boolean', name: 'Timer unter Schwelle', description: 'Countdown hat die angegebene Restzeit erreicht oder ist abgelaufen',
       defaultStyle: { bgcolor: AMBER, color: BLACK },

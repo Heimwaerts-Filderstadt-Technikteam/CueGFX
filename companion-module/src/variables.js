@@ -30,6 +30,12 @@ function scoreTeams(d) {
   (Array.isArray(d.moreTeams) ? d.moreTeams : []).forEach((t, i) => { const key = String.fromCharCode(99 + i); out.push({ key, name: (t && t.name) || 'Team ' + key.toUpperCase(), score: Number(t && t.score) || 0 }); });
   return out;
 }
+function boardSorted(d) {
+  const rows = (Array.isArray(d.entries) ? d.entries : []).map((e, i) => ({ name: e && e.name, score: Number(e && e.score) || 0, i }));
+  if (d.sort === 'desc') rows.sort((a, b) => b.score - a.score || a.i - b.i);
+  else if (d.sort === 'asc') rows.sort((a, b) => a.score - b.score || a.i - b.i);
+  return rows;
+}
 const TEAM_CHOICES = 'abcdefgh'.split('').map((k) => ({ id: k, label: 'Team ' + k.toUpperCase() + (k === 'a' ? ' (Heim)' : k === 'b' ? ' (Gast)' : '') }));
 
 function timerMs(t, now) {
@@ -100,6 +106,12 @@ function buildVariables(self) {
         }
         defs.push({ variableId: `g_${k}_leader`, name: `${g.name}: führendes Team` });
       }
+      if (g.type === 'wheel') {
+        defs.push({ variableId: `g_${k}_result`, name: `${g.name}: letztes Ergebnis` }, { variableId: `g_${k}_spinning`, name: `${g.name}: dreht sich (true/false)` }, { variableId: `g_${k}_spins`, name: `${g.name}: Anzahl Drehungen` });
+      }
+      if (g.type === 'leaderboard') {
+        for (const n of [1, 2, 3]) defs.push({ variableId: `g_${k}_top${n}_name`, name: `${g.name}: Platz ${n} Name` }, { variableId: `g_${k}_top${n}_score`, name: `${g.name}: Platz ${n} Punkte` });
+      }
       if (g.type === 'lyrics' || g.type === 'nnt') {
         defs.push({ variableId: `g_${k}_index`, name: `${g.name}: aktuelle Position` }, { variableId: `g_${k}_count`, name: `${g.name}: Anzahl` });
         defs.push({ variableId: `g_${k}_current`, name: `${g.name}: aktueller Text` }, { variableId: `g_${k}_next`, name: `${g.name}: nächster Text` });
@@ -158,6 +170,17 @@ function computeVariables(self) {
       for (const t of teams) { v[`g_${k}_score_${t.key}`] = String(t.score); v[`g_${k}_team_${t.key}`] = String(t.name); }
       const best = Math.max(...teams.map((t) => t.score)), lead = teams.filter((t) => t.score === best);
       v[`g_${k}_leader`] = lead.length === 1 ? lead[0].name : 'Gleichstand';
+    }
+    if (g.type === 'wheel') {
+      const w = g.data.wheel || {};
+      const spinning = !!(w.spinning && now < (w.startedAt || 0) + (w.duration || 0) + 1000);
+      v[`g_${k}_result`] = spinning ? '…' : String(w.result || '');
+      v[`g_${k}_spinning`] = String(spinning);
+      v[`g_${k}_spins`] = String((w.history || []).length);
+    }
+    if (g.type === 'leaderboard') {
+      const rows = boardSorted(g.data);
+      for (const n of [1, 2, 3]) { const r = rows[n - 1]; v[`g_${k}_top${n}_name`] = r ? String(r.name || '') : ''; v[`g_${k}_top${n}_score`] = r ? String(Number(r.score) || 0) : ''; }
     }
     const st = stepInfo(g);
     if (st) {

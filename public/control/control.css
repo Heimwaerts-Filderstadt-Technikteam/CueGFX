@@ -347,3 +347,20 @@ a.btn { text-decoration: none; color: inherit; display: inline-block; }
 .tpl-sw i { width: 10px; height: 16px; display: block; }
 
 .share-box { background: var(--bg) !important; border-color: var(--line2); }
+
+/* Glücksrad */
+.wheelbox { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; }
+.wheelbox .btn.big { font-size: 16px; padding: 12px 22px; }
+.wh-status { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.wh-status small { color: var(--fg2); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.wh-status b { font-size: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wh-hist { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow: auto; background: var(--bg); border-radius: 8px; padding: 6px 8px; }
+.wh-hist > div { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+.wh-hist span { color: var(--fg2); min-width: 28px; text-align: right; font-variant-numeric: tabular-nums; }
+.wh-hist b { flex: 1; font-weight: 600; } .wh-hist i { color: var(--fg2); font-style: normal; font-size: 11px; }
+/* Rangliste */
+.boardbox { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; }
+.lb-ctrl { display: flex; flex-direction: column; gap: 4px; max-height: 380px; overflow: auto; }
+.lbc-row { display: flex; align-items: center; gap: 6px; background: var(--bg); border-radius: 6px; padding: 4px 8px; }
+.lbc-row .rk { min-width: 28px; color: var(--fg2); font-variant-numeric: tabular-nums; }
+.lbc-row b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

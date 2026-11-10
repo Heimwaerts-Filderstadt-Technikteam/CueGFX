@@ -62,6 +62,46 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
   await cmd('score.team.remove', { id: scoreId, team: 'c' }); await cmd('score.reset', { id: scoreId });
   ok(sg().moreTeams.length === 1 && sg().moreTeams[0].name === 'Gelb' && sg().moreTeams[0].score === 0 && sg().scoreB === 0, 'Spielstand: Team entfernen, alle auf 0');
 
+  // Glücksrad
+  const wId = (await cmd('graphic.add', { type: 'wheel', data: { entries: 'Eins\nZwei\nDrei', spinSeconds: 1, resultVar: 'gewinn' } })).body.result.id;
+  const wd = () => server.project.graphics.find((g) => g.id === wId).data;
+  const results = [];
+  for (let i = 0; i < 6; i++) {
+    const r = await get(`/api/graphics/${wId}/spin`);
+    if (i === 0) ok((await get(`/api/graphics/${wId}/spin`)).status === 409, 'Glücksrad: Drehen während der Drehung abgewiesen');
+    ok(r.body.ok, `Glücksrad: Drehung ${i + 1} gestartet`);
+    await new Promise((res) => setTimeout(res, 1350));
+    results.push(wd().wheel.result);
+  }
+  ok(results.every((x) => ['Eins', 'Zwei', 'Drei'].includes(x)) && results.every((x, i) => i === 0 || x !== results[i - 1]), `Glücksrad: Ergebnis nie zweimal hintereinander gleich (${results.join(', ')})`);
+  const w0 = wd().wheel; const seg = 360 / 3; const local = ((360 - (w0.angle % 360)) % 360);
+  ok(['Eins', 'Zwei', 'Drei'][Math.floor(local / seg)] === w0.result, 'Glücksrad: Zeiger steht auf dem gezogenen Feld');
+  ok(wd().wheel.history.length === 6 && server.variables().gewinn === results[5], 'Glücksrad: Verlauf und Variable');
+  await cmd('graphic.update', { id: wId, data: { removeWinner: true } });
+  await get(`/api/graphics/${wId}/spin`); await new Promise((res) => setTimeout(res, 1350));
+  await get(`/api/graphics/${wId}/spin`); await new Promise((res) => setTimeout(res, 1350));
+  const ex = wd().wheel.excluded;
+  ok(ex.length === 2 && ex[0] !== ex[1], 'Glücksrad: gezogene Felder werden aus dem Rad genommen');
+  await cmd('wheel.refill', { id: wId });
+  ok(wd().wheel.excluded.length === 0, 'Glücksrad: alle zurück ins Rad');
+
+  // Rangliste
+  const bId = (await cmd('graphic.add', { type: 'leaderboard' })).body.result.id;
+  const bd = () => server.project.graphics.find((g) => g.id === bId).data;
+  await get(`/api/graphics/${bId}/board?entry=Team%20Lila&delta=30`); await cmd('board.add', { id: bId, entry: 2, delta: -2 });
+  await get(`/api/graphics/${bId}/board-entry?name=Team%20Neu`); await cmd('board.set', { id: bId, entry: 'team neu', value: 37 });
+  const T = require('../public/shared/graphic-types.js');
+  const rows = T.boardRows(bd());
+  ok(bd().entries[4].score === 45 && bd().entries[1].score === 35 && bd().entries[5].score === 37, 'Rangliste: Punkte per Name/Nummer, Eintrag anlegen');
+  ok(rows[0].name === 'Team Lila' && rows.map((r) => r.rank).join(',') === '1,2,3,3,5,6', `Rangliste: Sortierung und gemeinsame Plätze (${rows.map((r) => r.rank).join(',')})`);
+  ok(T.boardRows(Object.assign({}, bd(), { ties: 'dense' })).map((r) => r.rank).join(',') === '1,2,3,3,4,5', 'Rangliste: lückenlose Plätze');
+  ok((await cmd('board.add', { id: bId, entry: 'Gibtsnicht' })).status === 400, 'Rangliste: unbekannter Eintrag abgewiesen');
+
+  // Webseite
+  const webId = (await cmd('graphic.add', { type: 'webpage' })).body.result.id;
+  await get(`/api/graphics/${webId}/reload`); await get(`/api/graphics/${webId}/reload`);
+  ok(server.project.graphics.find((g) => g.id === webId).data.reloadKey === 2, 'Webseite: neu laden');
+
   const lyId = (await cmd('graphic.add', { type: 'lyrics' })).body.result.id;
   await get(`/api/graphics/${lyId}/next`);
   await get(`/api/graphics/${lyId}/next`);
@@ -91,7 +131,7 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
   fs.rmSync(path.join(dir, 'media', up.body.name));
   const imp = await get('/api/import?name=Importiert', { method: 'POST', body: exp.body });
   ok(imp.body.ok && imp.body.media === 1, 'Import inkl. Mediendatei');
-  ok(server.project.name === 'Importiert' && server.project.graphics.length === list.length + 4, 'Importiertes Projekt ist aktiv und vollständig');
+  ok(server.project.name === 'Importiert' && server.project.graphics.length === list.length + 7, 'Importiertes Projekt ist aktiv und vollständig');
   ok(fs.existsSync(path.join(dir, 'media', up.body.name)), 'Mediendatei wiederhergestellt');
 
   if (typeof WebSocket === 'function') {

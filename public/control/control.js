@@ -128,6 +128,11 @@
         for (const t of teams) box.append(h('button', { class: 'btn xs', title: `${t.name} +1`, style: { borderLeft: `3px solid ${t.color}` }, onclick: () => run('score.add', { id: g.id, team: t.key, delta: 1 }) }, `${t.key.toUpperCase()} ${t.score}`));
       }
     }
+    if (g.type === 'wheel') {
+      const w = g.data.wheel || {};
+      box.append(h('button', { class: 'btn xs', onclick: () => run('wheel.spin', { id: g.id }) }, '🎡 Drehen'), h('span', { class: 'tv' }, w.spinning ? '…' : (w.result || '')));
+    }
+    if (g.type === 'webpage') box.append(h('button', { class: 'btn xs', title: 'Neu laden', onclick: () => run('web.reload', { id: g.id }) }, '⟳'));
     if ((t.controls || []).includes('step')) {
       const n = g.type === 'lyrics' ? String(g.data.text || '').split(/\n\s*\n/).filter((s) => s.trim()).length : (g.data.items || []).length;
       box.append(h('button', { class: 'btn xs', onclick: () => run('step', { id: g.id, delta: -1 }) }, '◀'),
@@ -271,6 +276,9 @@
       if (ctrls.includes('timer')) body.appendChild(timerPanel(g));
       if (ctrls.includes('step')) body.appendChild(stepPanel(g));
       if (ctrls.includes('qa')) body.appendChild(qaPanel());
+      if (ctrls.includes('wheel')) body.appendChild(wheelPanel(g));
+      if (ctrls.includes('board')) body.appendChild(boardPanel(g));
+      if (ctrls.includes('web')) body.appendChild(webPanel(g));
       ed.appendChild(group('Steuerung', body));
     }
 
@@ -426,6 +434,91 @@
         h('div', { class: 'hint' }, `${open} offen · ${pend} zu prüfen`));
     });
     return box;
+  }
+
+  /* ---------- Glücksrad ---------- */
+  function wheelPanel(g) {
+    const spin = h('button', { class: 'btn primary big', onclick: () => run('wheel.spin', { id: g.id }) }, '🎡 Drehen');
+    const status = h('div', { class: 'wh-status' });
+    const hist = h('div', { class: 'wh-hist' });
+    const left = h('span', { class: 'hint' });
+    const refill = h('button', { class: 'btn sm', onclick: () => run('wheel.refill', { id: g.id }) }, '↺ Alle zurück ins Rad');
+    const hide = h('button', { class: 'btn sm', onclick: () => run('wheel.hideResult', { id: g.id }) }, 'Nachricht ausblenden');
+    const exportCsv = () => {
+      const w = (graphic(g.id).data.wheel || {}), rows = (w.history || []).slice().reverse();
+      if (!rows.length) return toast('Noch keine Ergebnisse', 'warn');
+      const q = (x) => '"' + String(x).replace(/"/g, '""') + '"';
+      const csv = '\ufeffNr;Zeit;Ergebnis\n' + rows.map((r, i) => [i + 1, new Date(r.ts).toLocaleString('de-DE'), q(r.label)].join(';')).join('\n');
+      const a = h('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: `${graphic(g.id).name || 'Glücksrad'} – Ergebnisse.csv` });
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    };
+    let timer = null;
+    const sync = () => {
+      const gg = graphic(g.id); if (!gg) return;
+      const d = gg.data, w = d.wheel || {};
+      const now = Date.now();
+      const spinning = !!(w.spinning && now < (w.startedAt || 0) + (w.duration || 0) + 1500);
+      spin.disabled = spinning;
+      spin.textContent = spinning ? '… dreht sich' : '🎡 Drehen';
+      status.innerHTML = '';
+      status.append(h('small', null, spinning ? 'Das Rad dreht sich …' : (w.result ? 'Letztes Ergebnis' : 'Noch nicht gedreht')), h('b', null, spinning ? '…' : (w.result || '–')));
+      const all = String(d.entries || '').split('\n').filter((x) => x.trim()).length, inWheel = T.wheelEntries(d).length;
+      left.textContent = d.removeWinner || inWheel < all ? `${inWheel} von ${all} Feldern im Rad` : `${all} Felder im Rad`;
+      refill.hidden = inWheel >= all;
+      hide.hidden = !(w.result && !w.resultHidden && !spinning && d.showResult !== false);
+      hist.innerHTML = '';
+      (w.history || []).slice(0, 12).forEach((r, i) => hist.appendChild(h('div', null, h('span', null, `${(w.history.length - i)}.`), h('b', null, r.label), h('i', null, new Date(r.ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })))));
+      if (!(w.history || []).length) hist.appendChild(h('div', { class: 'hint' }, 'Ergebnisse erscheinen hier und werden mitgeschrieben.'));
+      clearTimeout(timer);
+      if (spinning) timer = setTimeout(sync, Math.max(300, (w.startedAt + w.duration) - now + 400));
+    };
+    editorExtras.push(sync); sync();
+    return h('div', { class: 'wheelbox' },
+      h('div', { class: 'row' }, spin, status),
+      h('div', { class: 'row' }, left, refill, hide),
+      h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('b', { class: 'hint' }, 'Verlauf'),
+        h('div', { class: 'row' }, h('button', { class: 'btn xs', onclick: exportCsv }, '⤓ CSV'),
+          h('button', { class: 'btn xs', onclick: async () => { if (await UI.confirm('Verlauf leeren?', 'Alle bisherigen Ergebnisse werden gelöscht.', 'Leeren')) run('wheel.history.clear', { id: g.id }); } }, 'Leeren'))),
+      hist);
+  }
+
+  /* ---------- Rangliste ---------- */
+  function boardPanel(g) {
+    const list = h('div', { class: 'lb-ctrl' });
+    let sig = '';
+    const sync = () => {
+      const gg = graphic(g.id); if (!gg) return;
+      const rows = T.boardRows(gg.data).sort((a, b) => a.idx - b.idx); // feste Reihenfolge, damit nichts unter der Maus wegspringt
+      const ns = JSON.stringify(rows.map((r) => [r.idx, r.name]));
+      if (ns !== sig) {
+        sig = ns; list.innerHTML = '';
+        for (const r of rows) {
+          const ref = String(r.idx + 1);
+          const btn = (dl) => h('button', { class: 'btn xs', onclick: () => run('board.add', { id: g.id, entry: ref, delta: dl }) }, dl > 0 ? `+${dl}` : String(dl));
+          const val = h('input', { class: 'inp', type: 'number', step: 'any', style: { width: '80px' }, onchange: () => run('board.set', { id: g.id, entry: ref, value: val.value }) });
+          list.appendChild(h('div', { class: 'lbc-row', dataset: { idx: r.idx } }, h('span', { class: 'rk' }), h('b', null, r.name || '(ohne Namen)'), val, btn(-1), btn(1), btn(5), btn(10)));
+        }
+        if (!rows.length) list.appendChild(h('div', { class: 'hint' }, 'Noch keine Einträge.'));
+      }
+      for (const r of rows) {
+        const row = list.querySelector(`.lbc-row[data-idx="${r.idx}"]`); if (!row) continue;
+        row.querySelector('.rk').textContent = r.rank + '.';
+        const inp = row.querySelector('input'); if (!UI.isFocused(inp)) inp.value = r.score;
+      }
+    };
+    editorExtras.push(sync); sync();
+    return h('div', { class: 'boardbox' }, list,
+      h('div', { class: 'row' },
+        h('button', { class: 'btn sm', onclick: async () => { const n = await UI.prompt('Eintrag hinzufügen', '', 'Name'); if (n !== null && n !== undefined) run('board.entry.add', { id: g.id, name: n }); } }, '+ Eintrag'),
+        h('button', { class: 'btn sm', onclick: async () => { if (await UI.confirm('Alle Punkte auf 0?', 'Die Punkte aller Einträge werden zurückgesetzt.', 'Zurücksetzen')) run('board.reset', { id: g.id }); } }, 'Alle auf 0')));
+  }
+
+  /* ---------- Webseite ---------- */
+  function webPanel(g) {
+    const open = h('button', { class: 'btn sm', onclick: () => { const u = String(graphic(g.id).data.url || '').trim(); if (u) window.open(/^[a-z][\w+.-]*:/i.test(u) ? u : 'https://' + u, '_blank'); } }, 'Im Browser öffnen ↗');
+    return h('div', { class: 'ctrlbar' },
+      h('button', { class: 'btn primary', onclick: () => run('web.reload', { id: g.id }) }, '⟳ Neu laden'), open,
+      h('span', { class: 'hint', style: { flexBasis: '100%' } }, 'YouTube-, Vimeo- und Twitch-Links werden automatisch als Player eingebettet. Seiten, die das Einbetten verbieten, zeigt die Desktop-App trotzdem an; in OBS-Browserquellen bleiben sie ggf. leer.'));
   }
 
   function stepPanel(g) {

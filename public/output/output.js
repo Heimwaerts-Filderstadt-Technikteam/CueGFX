@@ -219,7 +219,7 @@
   function layout(inst, g) {
     const d = g.data, td = inst.typeDef;
     inst.wrap.dataset.pos = td.fullscreen ? 'center' : (d.position || 'bottom-left');
-    inst.wrap.classList.toggle('full', !!td.fullscreen || ((g.type === 'image' || g.type === 'video') && !!d.fullscreen));
+    inst.wrap.classList.toggle('full', !!td.fullscreen || ((g.type === 'image' || g.type === 'video' || g.type === 'webpage') && !!d.fullscreen));
     inst.place.style.setProperty('--ox', (Number(d.offsetX) || 0) + 'px');
     inst.place.style.setProperty('--oy', (Number(d.offsetY) || 0) + 'px');
     inst.place.style.setProperty('--sc', ((Number(d.scale) || 100) / 100).toString());
