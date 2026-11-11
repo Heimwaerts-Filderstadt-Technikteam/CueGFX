@@ -57,51 +57,6 @@ async function startServer() {
   log(`Server läuft auf ${baseUrl()}`);
 }
 
-/* ---------- SDI teilen (z. B. mit ProPresenter): vorsichtige Automatik ----------
-   Freigeben erst, wenn CueGFX einige Sekunden im Hintergrund ist und (Schutz) auf den geteilten
-   Ausgängen nichts auf Sendung ist. Zurückholen sofort, sobald ein CueGFX-Fenster wieder vorne ist –
-   aber nur, wenn die Automatik freigegeben hat (manuelle Freigabe bleibt bestehen). */
-let shareTimer = null;
-const appFocused = () => BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.isFocused());
-function shareEnabled() { return decklink && decklink.available && server && server.sdiShareCfg().auto && decklink.sharedOutputs().length > 0; }
-function scheduleAutoRelease() {
-  clearTimeout(shareTimer);
-  if (!shareEnabled() || decklink.share.released) return;
-  const cfg = server.sdiShareCfg();
-  shareTimer = setTimeout(function check() {
-    shareTimer = null;
-    if (!shareEnabled() || decklink.share.released || appFocused()) return;
-    if (cfg.protect && server.sdiLiveConflict().length) { shareTimer = setTimeout(check, 2000); return; } // später erneut prüfen
-    try { decklink.release('auto'); server._pushHardware(); } catch (e) { log('SDI teilen:', e.message); }
-  }, (cfg.delay || 5) * 1000);
-}
-function autoClaim() {
-  clearTimeout(shareTimer); shareTimer = null;
-  if (decklink && decklink.available && decklink.share.released && decklink.share.by === 'auto') {
-    decklink.claim('auto'); server._pushHardware();
-  }
-}
-function setupShareAutomation() {
-  app.on('browser-window-focus', () => autoClaim());
-  // Erst kurz warten: beim Wechsel zwischen zwei CueGFX-Fenstern gibt es auch ein blur
-  app.on('browser-window-blur', () => setTimeout(() => { if (!appFocused()) scheduleAutoRelease(); }, 300));
-  if (process.platform === 'darwin') {
-    app.on('did-become-active', () => autoClaim());
-    app.on('did-resign-active', () => scheduleAutoRelease());
-  }
-  server.on('sdiShare', (cfg) => { if (!cfg.auto) { clearTimeout(shareTimer); shareTimer = null; } else if (!appFocused()) scheduleAutoRelease(); });
-}
-function toggleShareFromMenu() {
-  if (!decklink || !decklink.available) return;
-  try { server.exec('sdi.toggle', {}); }
-  catch (e) {
-    if (e.code === 409 || /Sendung/.test(e.message)) {
-      const r = dialog.showMessageBoxSync({ type: 'warning', buttons: ['Trotzdem freigeben', 'Abbrechen'], defaultId: 1, cancelId: 1, title: 'SDI freigeben', message: 'SDI-Ausgang freigeben?', detail: e.message });
-      if (r === 0) server.exec('sdi.release', { force: true });
-    } else dialog.showErrorBox('SDI teilen', e.message);
-  }
-}
-
 /* ---------- Ton-Ausgabe: unsichtbares Fenster spielt den Ton eines Ausgangs auf dem gewählten Gerät ---------- */
 function updateAudioWindow(cfg) {
   cfg = cfg || (server && server.audioOut()) || {};
@@ -157,11 +112,7 @@ function buildMenu() {
     return [
       { label: 'Vorschau-Ausgang', click: () => openOutputWindow('/output/preview') },
       { type: 'separator' },
-      ...outs.map((o) => ({ label: `Ausgang ${o.id} – ${o.name}`, click: () => openOutputWindow(`/output/${o.id}`) })),
-      ...(decklink && decklink.available && decklink.sharedOutputs().length ? [{ type: 'separator' }, {
-        label: decklink.share.released ? 'Geteilte SDI-Ausgänge zurückholen' : 'Geteilte SDI-Ausgänge freigeben (z. B. für ProPresenter)',
-        accelerator: 'CmdOrCtrl+Alt+S', click: toggleShareFromMenu
-      }] : [])
+      ...outs.map((o) => ({ label: `Ausgang ${o.id} – ${o.name}`, click: () => openOutputWindow(`/output/${o.id}`) }))
     ];
   };
   const template = [
@@ -235,8 +186,6 @@ app.whenReady().then(async () => {
   session.defaultSession.setPermissionCheckHandler((wc, perm) => (['media', 'speaker-selection', 'audioCapture'].includes(perm) ? !wc || own(wc) : true));
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(['media', 'speaker-selection', 'audioCapture', 'fullscreen'].includes(perm) && own(wc)));
   server.on('audioOut', (cfg) => updateAudioWindow(cfg));
-  decklink.onShareChange = () => { try { server._pushHardware(); buildMenu(); } catch (_) {} };
-  setupShareAutomation();
   updateAudioWindow();
   buildMenu();
   server.on('state', () => {

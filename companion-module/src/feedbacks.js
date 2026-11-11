@@ -75,11 +75,6 @@ function buildFeedbacks(self) {
       type: 'boolean', name: 'Q&A: Fragen warten auf Freigabe', defaultStyle: { bgcolor: AMBER, color: BLACK },
       options: [], callback: () => !!(self.project && self.project.questions.some((q) => q.status === 'pending'))
     },
-    sdi_released: {
-      type: 'boolean', name: 'SDI-Ausgang ist freigegeben (z. B. für ProPresenter)',
-      defaultStyle: { bgcolor: combineRgb(200, 120, 0), color: WHITE },
-      options: [], callback: () => !!(self.sdi && self.sdi.released)
-    },
     qa_pending_flagged: {
       type: 'boolean', name: 'Q&A: Wartende Frage enthält Sperrwort',
       defaultStyle: { bgcolor: RED, color: WHITE },

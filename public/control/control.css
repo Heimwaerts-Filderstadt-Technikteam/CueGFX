@@ -346,7 +346,6 @@ a.btn { text-decoration: none; color: inherit; display: inline-block; }
 .tpl-sw { display: inline-flex; border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,.15); }
 .tpl-sw i { width: 10px; height: 16px; display: block; }
 
-.share-box { background: var(--bg) !important; border-color: var(--line2); }
 
 /* Glücksrad */
 .wheelbox { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; }

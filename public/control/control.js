@@ -1355,37 +1355,6 @@
     return card;
   }
 
-  /* SDI mit anderen Programmen teilen: Status, Knöpfe, Automatik */
-  function sdiShareBox(dl) {
-    const sh = dl.share || {};
-    if (!sh.sharedCount) return h('div');
-    const cfg = (S.hw && S.hw.sdiShare) || { auto: false, delay: 5, protect: true };
-    const mac = /Mac/.test(navigator.platform);
-    const doShare = async (action) => {
-      try { await cmd('sdi.' + action, {}); }
-      catch (e) {
-        if (/Sendung/.test(e.message) && await UI.confirm('SDI-Ausgang freigeben?', e.message + ' – die Grafik verschwindet dann vom Ausgang.', 'Trotzdem freigeben')) { try { await cmd('sdi.release', { force: true }); } catch (e2) { toast(e2.message, 'err'); } }
-        else if (!/Sendung/.test(e.message)) toast(e.message, 'err');
-      }
-    };
-    const state = sh.released
-      ? h('span', { class: 'pill warn' }, `Freigegeben (${sh.by === 'auto' ? 'automatisch' : 'manuell'}) – andere Programme können das Gerät nutzen`)
-      : sh.retrying ? h('span', { class: 'pill warn' }, 'Hole zurück … Gerät noch belegt, neuer Versuch')
-        : h('span', { class: 'pill ok' }, 'Von CueGFX belegt');
-    const delay = h('input', { type: 'number', class: 'inp', min: 1, max: 120, value: cfg.delay, style: { width: '80px' }, onchange: () => run('sdi.settings', { delay: Number(delay.value) }) });
-    return h('div', { class: 'card share-box' },
-      h('h3', null, 'Mit ProPresenter & Co. teilen', h('span', { class: 'sp' }), state),
-      h('div', { class: 'row', style: { flexWrap: 'wrap', gap: '8px' } },
-        sh.released ? h('button', { class: 'btn primary sm', onclick: () => doShare('claim') }, '⤓ Zurückholen')
-          : h('button', { class: 'btn sm', onclick: () => doShare('release') }, '⤒ Jetzt freigeben'),
-        h('span', { class: 'hint', style: { margin: 0 } }, `Tastenkürzel ${mac ? '⌘⌥S' : 'Strg+Alt+S'} · Companion-Aktion „SDI freigeben/zurückholen“`)),
-      h('div', { class: 'row', style: { flexWrap: 'wrap', gap: '14px', marginTop: '10px' } },
-        h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: !!cfg.auto, onchange: (e) => run('sdi.settings', { auto: e.target.checked }) }), 'Automatisch freigeben, wenn CueGFX im Hintergrund ist'),
-        h('span', { class: 'row', style: { gap: '6px' } }, 'nach', delay, 'Sekunden'),
-        h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: cfg.protect !== false, onchange: (e) => run('sdi.settings', { protect: e.target.checked }) }), 'Nicht freigeben, solange darauf etwas auf Sendung ist')),
-      h('p', { class: 'hint' }, 'Gilt nur für DeckLink-Ausgaben mit „Mit anderen Programmen teilen“. Freigeben stoppt die Ausgabe und gibt das Gerät frei; ProPresenter kann es dann (ggf. Bildschirm dort neu aktivieren) nutzen. Die Automatik holt den Ausgang zurück, sobald ein CueGFX-Fenster wieder im Vordergrund ist – eine manuelle Freigabe bleibt bestehen, bis du „Zurückholen“ drückst. Beim Wechsel ist das SDI-Signal kurz unterbrochen.'));
-  }
-
   function decklinkCard() {
     const dl = S.hw && S.hw.decklink;
     const card = h('div', { class: 'card' }, h('h3', null, 'Blackmagic DeckLink / UltraStudio', h('span', { class: 'sp' }),
@@ -1402,7 +1371,6 @@
         h('td', null, [d.canOutput ? 'Ausgabe' : null, d.canInput ? 'Eingang' : null].filter(Boolean).join(' · ')),
         h('td', null, [d.externalKeying ? 'Extern (Fill+Key)' : null, d.internalKeying ? 'Intern' : null].filter(Boolean).join(' · ') || '—')))));
     if (!S.dlDraft) S.dlDraft = JSON.parse(JSON.stringify(dl.outputs || []));
-    card.appendChild(sdiShareBox(dl));
     const outDevs = devs.filter((d) => d.canOutput), inDevs = devs.filter((d) => d.canInput);
     S.dlDraft.forEach((o, i) => {
       const dev = devs.find((d) => d.key === o.deviceKey);
@@ -1430,7 +1398,7 @@
       const omSel = h('select', { class: 'inp', onchange: () => { o.outputMode = omSel.value; } }, h('option', { value: 'auto' }, 'Automatisch (Scheduled, Rückfall auf direkt)'), h('option', { value: 'sync' }, 'Direkt (synchron)'));
       omSel.value = o.outputMode || 'auto';
       const lvl = h('input', { type: 'number', class: 'inp', min: 0, max: 255, value: o.keyLevel === undefined ? 255 : o.keyLevel, oninput: () => { o.keyLevel = Number(lvl.value); } });
-      const statusPill = st.released ? h('span', { class: 'pill warn', title: 'Für andere Programme freigegeben' }, 'freigegeben') : st.running ? h('span', { class: 'pill ok' }, `läuft · ${st.width}×${st.height} @ ${st.fps}`) : st.error ? h('span', { class: 'pill err', title: st.error }, 'Fehler') : h('span', { class: 'pill' }, o.enabled ? 'gestoppt' : 'aus');
+      const statusPill = st.running ? h('span', { class: 'pill ok' }, `läuft · ${st.width}×${st.height} @ ${st.fps}`) : st.error ? h('span', { class: 'pill err', title: st.error }, 'Fehler') : h('span', { class: 'pill' }, o.enabled ? 'gestoppt' : 'aus');
       const extra = [];
       const modeTxt = { scheduled: 'Scheduled', sync: 'Direkt', 'sync-fallback': 'Direkt (automatischer Rückfall)' }[st.outputMode] || '';
       if (st.running) extra.push(`Verfahren ${modeTxt || '–'} · Pixelformat ${st.pixelFormat || '–'} · an Karte ${st.frames || 0} Frames · Grafik-Bilder ${st.pushed || 0} · Render ${st.renderFps || 0} fps${st.captureMode ? ' (Bildabgriff)' : ''} · verspätet ${st.late || 0} · verworfen ${st.dropped || 0}`);
@@ -1451,8 +1419,7 @@
           h('div', { class: 'field' }, h('label', null, 'Pixelformat'), pfSel),
           h('div', { class: 'field' }, h('label', null, 'Ausgabeverfahren'), omSel),
           h('div', { class: 'field' }, h('label', { class: 'switch', style: { marginTop: '18px' } }, h('input', { type: 'checkbox', checked: !!o.swapRB, onchange: (e) => { o.swapRB = e.target.checked; } }), 'Rot/Blau tauschen')),
-          h('div', { class: 'field' }, h('label', { class: 'switch', style: { marginTop: '18px' } }, h('input', { type: 'checkbox', checked: !!o.localAudio, onchange: (e) => { o.localAudio = e.target.checked; } }), 'Ton über Computer ausgeben')),
-          h('div', { class: 'field' }, h('label', { class: 'switch', style: { marginTop: '18px' }, title: 'Dieser Ausgang kann für andere Programme (z. B. ProPresenter) freigegeben werden' }, h('input', { type: 'checkbox', checked: !!o.share, onchange: (e) => { o.share = e.target.checked; } }), 'Mit anderen Programmen teilen (z. B. ProPresenter)'))),
+          h('div', { class: 'field' }, h('label', { class: 'switch', style: { marginTop: '18px' } }, h('input', { type: 'checkbox', checked: !!o.localAudio, onchange: (e) => { o.localAudio = e.target.checked; } }), 'Ton über Computer ausgeben'))),
         extra.length ? h('p', { class: 'hint' }, extra.join(' · ')) : null));
     });
     card.appendChild(h('div', { class: 'row' },

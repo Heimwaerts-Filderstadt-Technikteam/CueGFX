@@ -59,13 +59,15 @@ class Store {
       ndiLibPath: '',
       chatSources: [],
       themeTemplates: [],
-      sdiShare: { auto: false, delay: 5, protect: true },
       audiencePort: 4002,
       audioOut: { enabled: true, output: '1', deviceId: '', label: '' },
       audiencePublicUrl: '',
       displayOutputs: [],
       lastSeenVersion: null
     }, readJson(this.configFile, {}));
+    // Entfernte Funktion „SDI teilen“: alte Einstellungen aufräumen
+    delete this.config.sdiShare;
+    for (const o of this.config.decklinkOutputs || []) delete o.share;
     this.project = null;
     this._saveTimer = null;
     this._loadCurrent();

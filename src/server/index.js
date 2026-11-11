@@ -429,15 +429,6 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
     res.end(pdf);
   }
 
-  sdiShareCfg() { return Object.assign({ auto: false, delay: 5, protect: true }, this.store.config.sdiShare || {}); }
-  /* Grafiken, die gerade auf einem Ausgang laufen, der auf eine geteilte DeckLink-Karte geht */
-  sdiLiveConflict() {
-    const dl = this.hooks.decklink;
-    if (!dl || !dl.available) return [];
-    const outs = new Set(dl.sharedOutputs().map((c) => c.output));
-    return this.project.graphics.filter((g) => g.live && (g.outputs || []).some((o) => outs.has(String(o)))).map((g) => g.name);
-  }
-
   _themeTemplates() {
     return (this.store.config.themeTemplates || []).map((t) => ({ id: t.id, name: t.name, primary: t.theme.primary, secondary: t.theme.secondary, accent: t.theme.accent, font: t.theme.headingFont || t.theme.font }));
   }
@@ -495,7 +486,7 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
   _broadcastControl(obj) { if (this.ws) this.ws.broadcast(JSON.stringify(obj), (c) => c.role === 'control'); }
 
   _pushHardware() {
-    const hw = { t: 'hw', sdiShare: this.sdiShareCfg(), decklink: this.hooks.decklink ? this.hooks.decklink.info() : { available: false, reason: 'Nur in der Desktop-App verfügbar' }, displays: this.hooks.displays ? this.hooks.displays.info() : { available: false }, ndi: this.hooks.ndi ? this.hooks.ndi.info() : { available: false, reason: 'Nur in der Desktop-App verfügbar' } };
+    const hw = { t: 'hw', decklink: this.hooks.decklink ? this.hooks.decklink.info() : { available: false, reason: 'Nur in der Desktop-App verfügbar' }, displays: this.hooks.displays ? this.hooks.displays.info() : { available: false }, ndi: this.hooks.ndi ? this.hooks.ndi.info() : { available: false, reason: 'Nur in der Desktop-App verfügbar' } };
     const s = JSON.stringify(hw);
     if (s !== this._hwJson) { this._hwJson = s; this._broadcastControl(hw); }
   }
@@ -983,31 +974,6 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
         return done({ graphicId: g.id });
       }
 
-      /* Chat */
-      /* SDI-Ausgänge mit anderen Programmen (z. B. ProPresenter) teilen */
-      case 'sdi.release': case 'sdi.claim': case 'sdi.toggle': {
-        const dl = this.hooks.decklink;
-        if (!dl || !dl.available) throw new HttpError(400, 'DeckLink-Ausgabe ist nur in der Desktop-App verfügbar');
-        const release = cmd === 'sdi.release' || (cmd === 'sdi.toggle' && !dl.share.released);
-        if (release) {
-          const live = this.sdiLiveConflict();
-          if (live.length && !a.force) throw new HttpError(409, `Auf dem geteilten Ausgang ist noch etwas auf Sendung: ${live.join(', ')}`);
-          dl.release('manual');
-        } else dl.claim('manual');
-        this._pushHardware();
-        return { released: dl.share.released };
-      }
-      case 'sdi.settings': {
-        const c = this.sdiShareCfg();
-        if (a.auto !== undefined) c.auto = !!a.auto;
-        if (a.delay !== undefined) c.delay = Math.max(1, Math.min(120, Number(a.delay) || 5));
-        if (a.protect !== undefined) c.protect = !!a.protect;
-        this.store.config.sdiShare = c;
-        this.store.saveConfig();
-        this.emit('sdiShare', c);
-        this._pushHardware();
-        return c;
-      }
       case 'audio.out': {
         // Ton-Ausgabe der Desktop-App: welcher Ausgang, welches Audiogerät ('' = Systemeinstellung)
         const c = this.store.config;
@@ -1327,7 +1293,6 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
       if (m === 'GET' && parts.length === 1) return this._json(res, dl.info());
       const a = await this._args(req, url);
       if (parts[1] === 'rescan') { await dl.rescan(); return this._json(res, dl.info()); }
-      if (parts[1] === 'share') { const act = ['release', 'claim', 'toggle'].includes(a.action) ? a.action : 'toggle'; return this._json(res, Object.assign({ ok: true }, this.exec('sdi.' + act, { force: !!a.force }))); }
       if (parts[1] === 'config') { await dl.configure(a.outputs || []); this.store.config.decklinkOutputs = dl.getConfig(); this.store.saveConfig(); this._pushHardware(); return this._json(res, dl.info()); }
     }
     if (parts[0] === 'ndi') {

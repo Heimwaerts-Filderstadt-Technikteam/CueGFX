@@ -84,7 +84,6 @@ function buildVariables(self) {
     { variableId: 'qa_pending_flagged', name: 'Q&A: älteste wartende Frage hat Sperrwort (true/false)' },
     { variableId: 'polls_open', name: 'Umfragen: Anzahl geöffnet' },
     { variableId: 'app_version', name: 'CueGFX-Version' },
-    { variableId: 'sdi_state', name: 'SDI-Teilen: Belegt / Freigegeben' },
     { variableId: 'time', name: 'Uhrzeit des CueGFX-Rechners' }
   ];
   const p = self.project;
@@ -155,7 +154,6 @@ function computeVariables(self) {
   v.qa_pending_flagged = nextPending && (nextPending.flagged || []).length ? 'true' : 'false';
   v.polls_open = String((p.polls || []).filter((x) => x.open).length);
   v.app_version = (self.info && self.info.version) || '';
-  v.sdi_state = !self.sdi || !self.sdi.sharedCount ? '' : self.sdi.released ? 'Freigegeben' : self.sdi.retrying ? 'Hole zurück' : 'Belegt';
   const keys = graphicKeys(p.graphics);
   for (const g of p.graphics) {
     const k = keys.get(g.id);
