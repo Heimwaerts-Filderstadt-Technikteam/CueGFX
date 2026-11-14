@@ -63,6 +63,7 @@ class Store {
       audioOut: { enabled: true, output: '1', deviceId: '', label: '' },
       audiencePublicUrl: '',
       displayOutputs: [],
+      stagePort: 4003, stagePublicUrl: '', stageKey: '',
       lastSeenVersion: null
     }, readJson(this.configFile, {}));
     // Entfernte Funktion „SDI teilen“: alte Einstellungen aufräumen

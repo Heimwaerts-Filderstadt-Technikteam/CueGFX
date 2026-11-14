@@ -79,9 +79,10 @@ class CueServer extends EventEmitter {
           if (g.type === 'wheel' && g.data.wheel && g.data.wheel.spinning) this._wheelSchedule(g);
           if (g.type === 'slot' && g.data.slot && g.data.slot.spinning) this._spinSchedule(g, 'slot', 'slot.finish');
         }
-        this.hwTimer = setInterval(() => this._pushHardware(), 1000);
+        this.hwTimer = setInterval(() => { this._pushHardware(); this._pushStage(); }, 1000);
         this.chat.init();
         this._startPublic();
+        this._startStage();
         this.sysFonts.scan().then((n) => {
           console.log(`[CueGFX] ${n} installierte Schriftfamilien gefunden (${this.sysFonts.ms} ms)`);
           this._broadcastControl({ t: 'sysFonts', families: this.sysFonts.names() });
@@ -100,6 +101,7 @@ class CueServer extends EventEmitter {
     this.chat.stopAll();
     this.store.saveProjectNow();
     await this._stopPublic();
+    await this._stopStage();
     if (this.ws) this.ws.close();
     if (this.http) await new Promise((r) => this.http.close(() => r()));
   }
@@ -139,6 +141,124 @@ class CueServer extends EventEmitter {
     const sf = p.match(/^\/api\/sysfont\/(\d+)/);
     if (sf && allow.sysfont.has(Number(sf[1]))) return this._api(req, res, url, p.slice(5));
     throw new HttpError(404, 'Nicht gefunden');
+  }
+
+  /* ---------- Bühnenmonitor als Webseite: nur Fragen ansehen (eigener Port, z. B. für eine zweite Domain) ----------
+   * Kann ausschließlich lesen: kein WebSocket, keine Befehle – Live-Updates per Server-Sent Events. */
+  _stageView() {
+    return Object.assign({ mode: 'list', sort: 'likes', max: 6, showLikes: true, showAuthor: true, showActive: true, title: '', scale: 100, clock: false, emptyText: 'Noch keine Fragen' }, this.project.stageView || {});
+  }
+  async _stopStage() {
+    for (const r of this.stageClients || []) { try { r.end(); } catch (_) {} }
+    this.stageClients = new Set();
+    clearInterval(this._stageKeep);
+    if (this.stageHttp) { const h = this.stageHttp; this.stageHttp = null; await new Promise((r) => { h.close(() => r()); setTimeout(r, 500); }); }
+  }
+  async _startStage() {
+    await this._stopStage();
+    const port = Number(this.store.config.stagePort) || 0;
+    this.stageStatus = port ? 'startet…' : 'aus';
+    if (!port) return;
+    const srv = http.createServer((req, res) => this._handleStage(req, res).catch((e) => this._error(res, e)));
+    await new Promise((resolve) => {
+      srv.once('error', (e) => { this.stageStatus = e.code === 'EADDRINUSE' ? `Port ${port} ist belegt` : 'Fehler: ' + e.message; this.stageHttp = null; resolve(); });
+      srv.listen(port, this.host, () => { this.stageHttp = srv; this.stageStatus = 'läuft'; resolve(); });
+    });
+    this._stageKeep = setInterval(() => { for (const r of this.stageClients) { try { r.write(': ping\n\n'); } catch (_) {} } }, 20000);
+  }
+  _stageKeyOk(url) {
+    const key = String(this.store.config.stageKey || '');
+    return !key || url.searchParams.get('key') === key;
+  }
+  async _handleStage(req, res) {
+    const url = new URL(req.url, 'http://localhost');
+    const p = decodeURIComponent(url.pathname);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-CueGFX-Instance', this.instanceId);
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'Nur lesen');
+    if (p === '/healthz') { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('ok'); return; }
+    if (p === '/' || p === '/index.html' || p === '/stage' || p === '/stage/') return this._file(res, path.join(PUBLIC, 'stage', 'index.html'));
+    if (p === '/api/stage.css') return this._audienceCss(res, { stage: true });
+    const allow = this._audienceAssets();
+    if (p.startsWith('/media/') && allow.media.has(p.slice(7))) return this._media(req, res, p.slice(7));
+    if (p === '/favicon.ico' && allow.logo) return this._media(req, res, allow.logo);
+    const sf = p.match(/^\/api\/sysfont\/(\d+)/);
+    if (sf && allow.sysfont.has(Number(sf[1]))) return this._api(req, res, url, p.slice(5));
+    if (p === '/api/state' || p === '/api/stream') {
+      if (!this._stageKeyOk(url)) throw new HttpError(403, 'Zugangsschlüssel fehlt oder ist falsch');
+      if (p === '/api/state') return this._json(res, this._stagePayload());
+      res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+      res.write('retry: 2000\n\n');
+      res.write(`data: ${JSON.stringify(this._stagePayload())}\n\n`);
+      this.stageClients.add(res);
+      req.on('close', () => this.stageClients.delete(res));
+      return;
+    }
+    throw new HttpError(404, 'Nicht gefunden');
+  }
+  _stagePayload() {
+    const v = this._stageView(), d = this.project.audienceDesign || {};
+    const qs = (this.project.questions || []).filter((q) => q.status === 'live' && !q.resolved);
+    const pick = (q) => q && { id: q.id, text: q.text, author: v.showAuthor ? (q.author || '') : '', likes: v.showLikes ? (q.likes || 0) : null };
+    const active = qs.find((q) => q.active) || null;
+    let rest = qs.filter((q) => !q.active);
+    if (v.sort === 'new') rest.sort((a, b) => b.ts - a.ts);
+    else if (v.sort === 'old') rest.sort((a, b) => a.ts - b.ts);
+    else rest.sort((a, b) => (b.likes || 0) - (a.likes || 0) || a.ts - b.ts);
+    const max = Math.max(1, Math.min(30, Number(v.max) || 6));
+    return {
+      title: v.title || '', view: { mode: v.mode, showActive: v.showActive !== false, scale: Number(v.scale) || 100, clock: !!v.clock, emptyText: v.emptyText || '' },
+      logo: d.logo && !/^https?:/.test(d.logo) ? '/media/' + encodeURIComponent(d.logo) : (d.logo || ''),
+      active: pick(active), list: rest.slice(0, max).map(pick), more: Math.max(0, rest.length - max), total: qs.length
+    };
+  }
+  _pushStage() {
+    if (!this.stageClients || !this.stageClients.size || !this.project) return;
+    const j = JSON.stringify(this._stagePayload());
+    if (j === this._stageLast) return;
+    this._stageLast = j;
+    for (const r of this.stageClients) { try { r.write(`data: ${j}\n\n`); } catch (_) {} }
+  }
+  _stageUrl() {
+    const c = this.store.config;
+    const key = c.stageKey ? '?key=' + encodeURIComponent(c.stageKey) : '';
+    if (c.stagePublicUrl) return c.stagePublicUrl.replace(/\/+$/, '') + '/' + key;
+    const lan = (this._lanCache && this._lanCache.urls[0]) || `http://127.0.0.1:${this.port}`;
+    if (c.stagePort && this.stageHttp) return lan.replace(/:\d+$/, ':' + c.stagePort) + '/' + key;
+    return '';
+  }
+  /* Prüft die Domain des Bühnenmonitors */
+  async _testStageUrl(urlStr) {
+    const steps = [];
+    const add = (ok, label, detail, warn) => steps.push({ ok, warn: !!warn, label, detail });
+    const done = () => ({ ok: steps.every((x) => x.ok || x.warn), steps, url: urlStr });
+    let u;
+    try { let raw = String(urlStr || '').trim(); if (!raw) { add(false, 'Adresse', 'Keine Adresse eingetragen'); return done(); } if (!/^https?:\/\//i.test(raw)) raw = 'https://' + raw; u = new URL(raw); }
+    catch (_) { add(false, 'Adresse', 'Ungültige Adresse'); return done(); }
+    const key = this.store.config.stageKey ? '?key=' + encodeURIComponent(this.store.config.stageKey) : '';
+    try { const r = await require('dns').promises.lookup(u.hostname); add(true, 'DNS', `${u.hostname} → ${r.address}`); }
+    catch (e) { add(false, 'DNS', `${u.hostname} lässt sich nicht auflösen – DNS-Eintrag prüfen`); return done(); }
+    let res, html = '';
+    try { res = await fetch(u.origin + '/' + key, { redirect: 'follow', signal: AbortSignal.timeout(10000) }); html = await res.text(); }
+    catch (e) { const c = (e.cause && (e.cause.code || e.cause.message)) || e.message; add(false, 'Verbindung', /CERT|SSL|TLS/i.test(c) ? 'HTTPS-Zertifikat ungültig – im NPM ein Let’s-Encrypt-Zertifikat anfordern' : c); return done(); }
+    if (!res.ok) { add(false, 'Seite laden', `HTTP ${res.status}${res.status === 502 || res.status === 504 ? ' – Proxy erreicht CueGFX nicht: Forward-IP/Port prüfen' : ''}`); return done(); }
+    let fin = u; try { if (res.url) fin = new URL(res.url); } catch (_) {}
+    add(true, 'Seite laden', `HTTP ${res.status}`);
+    const inst = res.headers.get('x-cuegfx-instance');
+    if (!/id="stage"/.test(html)) { add(false, 'Bühnenmonitor', 'Unter der Adresse antwortet eine andere Seite – Forward-Port auf den Bühnenmonitor-Port stellen'); return done(); }
+    add(!inst || inst === this.instanceId, 'Bühnenmonitor', inst && inst !== this.instanceId ? 'Seite gehört zu einer anderen CueGFX-Installation' : 'Bühnenmonitor-Seite dieser Installation geladen');
+    // Live-Updates: der erste Datenblock muss sofort ankommen (sonst puffert der Proxy)
+    try {
+      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 6000);
+      const r = await fetch(fin.origin + '/api/stream' + key, { signal: ctl.signal });
+      if (!r.ok) { clearTimeout(t); add(false, 'Live-Updates', `HTTP ${r.status}${r.status === 403 ? ' – Zugangsschlüssel prüfen' : ''}`); return done(); }
+      const rd = r.body.getReader(); let got = '';
+      while (!/data:/.test(got)) { const { value, done: end } = await rd.read(); if (end) break; got += Buffer.from(value).toString(); }
+      clearTimeout(t); ctl.abort();
+      add(/data:/.test(got), 'Live-Updates', /data:/.test(got) ? 'Live-Verbindung steht – neue Fragen erscheinen sofort' : 'Keine Daten empfangen');
+    } catch (e) { add(false, 'Live-Updates', 'Keine Live-Daten innerhalb von 6 s – der Proxy puffert vermutlich. Im NPM unter „Advanced“ eintragen: proxy_buffering off;'); }
+    return done();
   }
 
   /* Prüft, ob die Publikumsseite unter der eigenen Domain erreichbar ist und funktioniert */
@@ -244,7 +364,7 @@ class CueServer extends EventEmitter {
     return { media, sysfont, logo, fams, fonts };
   }
 
-  _audienceCss(res) {
+  _audienceCss(res, opt) {
     const d = this.project.audienceDesign || {};
     const A = this._audienceAssets();
     const out = [];
@@ -266,7 +386,9 @@ class CueServer extends EventEmitter {
       '--fg2:color-mix(in srgb,var(--fg) 70%,var(--bg) 30%);--fg3:color-mix(in srgb,var(--fg) 50%,var(--bg) 50%);' + (light ? 'color-scheme:light;' : 'color-scheme:dark;') + '}');
     if (d.font) out.push(`:is(body,button,input,textarea,.tabs button,.seg button,button.primary,.opt,.like){font-family:${d.font};}`);
     if (d.headingFont) out.push(`h1,h2,.poll h2{font-family:${d.headingFont};}`);
-    if (d.customCss) out.push('/* Eigenes CSS */\n' + String(d.customCss).replace(/<\/style/gi, ''));
+    if (d.customCss && !(opt && opt.stage)) out.push('/* Eigenes CSS */\n' + String(d.customCss).replace(/<\/style/gi, ''));
+    const sv = this.project.stageView || {};
+    if (opt && opt.stage && sv.customCss) out.push('/* Eigenes CSS Bühnenmonitor */\n' + String(sv.customCss).replace(/<\/style/gi, ''));
     res.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'no-cache' });
     res.end(out.join('\n'));
   }
@@ -343,7 +465,7 @@ class CueServer extends EventEmitter {
 
   _statePayload() {
     if (!this._lanCache || Date.now() - this._lanCache.t > 10000) this._lanCache = { t: Date.now(), urls: this.lanUrls() };
-    return { t: 'state', serverTime: Date.now(), project: this.project, vars: this.variables(), info: { version: VERSION, build: BUILD, port: this.port, lan: this._lanCache.urls, audienceUrl: this._audienceUrl(), audiencePort: Number(this.store.config.audiencePort) || 0, audiencePublicUrl: this.store.config.audiencePublicUrl || '', audienceStatus: this.pubStatus || 'aus', audioOut: this.audioOut(), themeTemplates: this._themeTemplates(), frameTemplates: this.store.config.frameTemplates || [] } };
+    return { t: 'state', serverTime: Date.now(), project: this.project, vars: this.variables(), info: { version: VERSION, build: BUILD, port: this.port, lan: this._lanCache.urls, audienceUrl: this._audienceUrl(), audiencePort: Number(this.store.config.audiencePort) || 0, audiencePublicUrl: this.store.config.audiencePublicUrl || '', audienceStatus: this.pubStatus || 'aus', stagePort: Number(this.store.config.stagePort) || 0, stageStatus: this.stageStatus || 'aus', stagePublicUrl: this.store.config.stagePublicUrl || '', stageKey: this.store.config.stageKey || '', stageUrl: this._stageUrl(), audioOut: this.audioOut(), themeTemplates: this._themeTemplates(), frameTemplates: this.store.config.frameTemplates || [] } };
   }
 
   /* ---------- Q&A-Export (Markdown / HTML / PDF) ---------- */
@@ -465,6 +587,7 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
   changed() {
     this.store.scheduleSave();
     if (this._audDirty) this._broadcastAudience();
+    this._pushStage();
     if (this._bcTimer) return;
     this._bcTimer = setTimeout(() => {
       this._bcTimer = null;
@@ -1005,6 +1128,36 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
         this._lanCache = null;
         return done();
       }
+      case 'stage.access': {
+        const c = this.store.config;
+        if (a.publicUrl !== undefined) { let u = String(a.publicUrl || '').trim().replace(/\/+$/, ''); if (u && !/^https?:\/\//i.test(u)) u = 'https://' + u; c.stagePublicUrl = u.slice(0, 300); }
+        if (a.key !== undefined) c.stageKey = String(a.key || '').trim().slice(0, 80);
+        let restart = false;
+        if (a.port !== undefined) {
+          const n = Number(a.port) || 0;
+          if (n !== 0 && (n < 1024 || n > 65535)) throw new HttpError(400, 'Port muss zwischen 1024 und 65535 liegen (0 = aus)');
+          if (n && (n === this.port || n === Number(c.audiencePort))) throw new HttpError(400, 'Der Bühnenmonitor braucht einen eigenen Port (nicht Steuerung oder Publikumsseite)');
+          if (n !== c.stagePort) { c.stagePort = n; restart = true; }
+        }
+        this.store.saveConfig();
+        if (restart) this._startStage().then(() => this.changed());
+        this._stageLast = '';
+        return done();
+      }
+      case 'stage.view': {
+        const v = Object.assign({}, this.project.stageView || {});
+        const P = a.view || a;
+        if (P.mode !== undefined) v.mode = ['list', 'active', 'next', 'activeOrNext'].includes(P.mode) ? P.mode : 'list';
+        if (P.sort !== undefined) v.sort = ['likes', 'new', 'old'].includes(P.sort) ? P.sort : 'likes';
+        if (P.max !== undefined) v.max = Math.max(1, Math.min(30, Number(P.max) || 6));
+        if (P.scale !== undefined) v.scale = Math.max(40, Math.min(300, Number(P.scale) || 100));
+        for (const k of ['showLikes', 'showAuthor', 'showActive', 'clock']) if (P[k] !== undefined) v[k] = !!P[k];
+        for (const k of ['title', 'emptyText']) if (P[k] !== undefined) v[k] = String(P[k] || '').slice(0, 120);
+        if (P.customCss !== undefined) v.customCss = String(P.customCss || '').slice(0, 20000);
+        this.project.stageView = v;
+        this._stageLast = '';
+        return done();
+      }
       case 'chat.connect': return { sourceId: this.chat.legacyConnect(a.channel) };
       case 'chat.disconnect': return this.chat.disableAll();
       case 'chat.source.add': return { id: this.chat.add(a.preset || a.type, a.values, { enable: !!a.enabled }) };
@@ -1205,6 +1358,10 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
     if (route === 'audience-test' && m === 'POST') {
       const a = await this._args(req, url);
       return this._json(res, await this._testAudienceUrl(a.url || this.store.config.audiencePublicUrl));
+    }
+    if (route === 'stage-test' && m === 'POST') {
+      const a = await this._args(req, url);
+      return this._json(res, await this._testStageUrl(a.url || this.store.config.stagePublicUrl));
     }
     if (route === 'cmd' && m === 'POST') {
       const a = await this._args(req, url);

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Fragen – Bühnenmonitor</title>
+<style>
+  :root { --bg: #0f1115; --card: #181b22; --fg: #eef1f5; --acc: #e11d48; --acc2: #f59e0b; --r: 14px;
+    --card2: color-mix(in srgb, var(--card) 88%, var(--fg) 12%); --fg2: color-mix(in srgb, var(--fg) 70%, var(--bg) 30%); --s: 1; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; cursor: none; }
+  body { display: flex; flex-direction: column; padding: calc(2.2vh * var(--s)) calc(2.5vw * var(--s)); gap: calc(1.8vh * var(--s)); }
+  header { display: flex; align-items: center; gap: 1.2vw; min-height: 0; }
+  header img { height: calc(5vh * var(--s)); max-width: 20vw; object-fit: contain; }
+  header h1 { margin: 0; font-size: calc(3.4vh * var(--s)); font-weight: 800; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header .meta { font-size: calc(2.4vh * var(--s)); color: var(--fg2); font-variant-numeric: tabular-nums; display: flex; gap: 1.5vw; align-items: center; }
+  header .dot { width: 1.1vh; height: 1.1vh; border-radius: 50%; background: #22c55e; display: inline-block; }
+  header .dot.off { background: #ef4444; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+  main { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: calc(1.4vh * var(--s)); overflow: hidden; }
+  .q { background: var(--card); border-radius: var(--r); padding: calc(1.6vh * var(--s)) calc(1.6vw * var(--s)); display: flex; gap: 1.4vw; align-items: flex-start; transition: transform .5s cubic-bezier(.3,.9,.3,1), opacity .4s; }
+  .q .txt { flex: 1; min-width: 0; font-size: calc(3.6vh * var(--s)); line-height: 1.25; font-weight: 650; overflow-wrap: anywhere; }
+  .q .by { display: block; margin-top: .35em; font-size: .6em; font-weight: 500; color: var(--fg2); }
+  .q .lk { flex: 0 0 auto; min-width: 3.2em; text-align: center; font-size: calc(2.8vh * var(--s)); font-weight: 800; color: var(--acc); background: color-mix(in srgb, var(--acc) 14%, transparent); border-radius: calc(var(--r) * .7); padding: .25em .5em; font-variant-numeric: tabular-nums; }
+  .q .lk::before { content: '▲ '; font-size: .75em; }
+  .q.active { background: color-mix(in srgb, var(--acc2) 18%, var(--card)); box-shadow: 0 0 0 .35vh var(--acc2) inset; }
+  .q.active .txt { font-size: calc(5.2vh * var(--s)); font-weight: 800; }
+  .tag { font-size: calc(1.9vh * var(--s)); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--acc2); margin-bottom: -.6vh; }
+  .tag.n { color: var(--fg2); margin-top: .8vh; }
+  .big { flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; }
+  .big .txt { font-size: calc(7vh * var(--s)); font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; max-width: 92vw; }
+  .big .by { display: block; margin-top: .5em; font-size: .45em; font-weight: 500; color: var(--fg2); }
+  .empty { flex: 1; display: grid; place-items: center; font-size: calc(4vh * var(--s)); color: var(--fg2); }
+  .more { font-size: calc(2.2vh * var(--s)); color: var(--fg2); text-align: center; }
+  .enter { animation: inq .5s ease-out; }
+  @keyframes inq { from { opacity: 0; transform: translateY(1.5vh); } }
+  .err { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); font-size: 3vh; color: var(--fg2); text-align: center; padding: 5vw; }
+</style>
+<link rel="stylesheet" href="/api/stage.css">
+</head>
+<body id="stage">
+  <header id="head" hidden><img id="logo" alt="" hidden><h1 id="title"></h1><div class="meta"><span id="count"></span><span id="clock" hidden></span><span class="dot" id="dot" title="Live-Verbindung"></span></div></header>
+  <main id="main"></main>
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const key = new URLSearchParams(location.search).get('key');
+  const qs = key ? '?key=' + encodeURIComponent(key) : '';
+  let data = null, seen = new Set(), clockTimer = null;
+
+  const card = (q, cls) => `<div class="q ${cls || ''}${seen.has(q.id) ? '' : ' enter'}" data-id="${esc(q.id)}"><div class="txt">${esc(q.text)}${q.author ? `<span class="by">${esc(q.author)}</span>` : ''}</div>${q.likes != null ? `<div class="lk">${q.likes}</div>` : ''}</div>`;
+  const big = (q, tag) => `<div class="big${seen.has(q.id) ? '' : ' enter'}"><div>${tag ? `<div class="tag" style="margin-bottom:2vh">${esc(tag)}</div>` : ''}<div class="txt">${esc(q.text)}${q.author ? `<span class="by">${esc(q.author)}</span>` : ''}</div></div></div>`;
+
+  function render() {
+    if (!data) return;
+    const v = data.view || {};
+    document.documentElement.style.setProperty('--s', (Number(v.scale) || 100) / 100);
+    const head = !!(data.title || data.logo || v.clock);
+    $('head').hidden = !head;
+    $('title').textContent = data.title || '';
+    $('logo').hidden = !data.logo; if (data.logo && $('logo').getAttribute('src') !== data.logo) $('logo').src = data.logo;
+    $('count').textContent = data.total ? `${data.total} ${data.total === 1 ? 'Frage' : 'Fragen'}` : '';
+    $('clock').hidden = !v.clock;
+    if (v.clock && !clockTimer) { const t = () => { $('clock').textContent = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); }; t(); clockTimer = setInterval(t, 5000); }
+    const next = data.list[0];
+    let html = '';
+    if (v.mode === 'active') html = data.active ? big(data.active) : '';
+    else if (v.mode === 'next') html = next ? big(next) : '';
+    else if (v.mode === 'activeOrNext') html = data.active ? big(data.active) : next ? big(next, 'Nächste Frage') : '';
+    else {
+      if (data.active && v.showActive) html += `<div class="tag">Jetzt</div>${card(data.active, 'active')}`;
+      if (data.list.length) html += (html ? '<div class="tag n">Als Nächstes</div>' : '') + data.list.map((q) => card(q)).join('');
+      if (data.more) html += `<div class="more">+ ${data.more} weitere</div>`;
+    }
+    $('main').innerHTML = html || `<div class="empty">${esc(v.emptyText || '')}</div>`;
+    seen = new Set([data.active, ...data.list].filter(Boolean).map((q) => q.id));
+    fit();
+  }
+  // Passt nicht alles auf den Bildschirm → Schrift schrittweise verkleinern
+  function fit() {
+    const m = $('main'), base = ((data && data.view && Number(data.view.scale)) || 100) / 100;
+    let s = base;
+    document.documentElement.style.setProperty('--s', s);
+    for (let i = 0; i < 25 && m.scrollHeight > m.clientHeight + 2 && s > 0.3; i++) { s *= 0.92; document.documentElement.style.setProperty('--s', s); }
+  }
+  addEventListener('resize', () => { clearTimeout(fit.t); fit.t = setTimeout(fit, 150); });
+
+  // Live-Verbindung (nur empfangen); Rückfall auf Abfrage alle 3 s
+  let es = null, poll = null, fails = 0;
+  const online = (on) => $('dot').classList.toggle('off', !on);
+  function startPoll() {
+    if (poll) return;
+    const tick = () => fetch('/api/state' + qs, { cache: 'no-store' }).then((r) => { if (r.status === 403) throw Object.assign(new Error(), { auth: true }); return r.json(); })
+      .then((d) => { data = d; online(true); render(); }).catch((e) => { online(false); if (e.auth) denied(); });
+    tick(); poll = setInterval(tick, 3000);
+  }
+  function denied() { document.body.insertAdjacentHTML('beforeend', '<div class="err">Für diesen Bühnenmonitor ist ein Zugangsschlüssel nötig.<br>Bitte den vollständigen Link verwenden.</div>'); if (es) es.close(); clearInterval(poll); }
+  function connect() {
+    if (!window.EventSource) return startPoll();
+    es = new EventSource('/api/stream' + qs);
+    es.onmessage = (ev) => { fails = 0; online(true); try { data = JSON.parse(ev.data); render(); } catch (_) {} };
+    es.onerror = () => {
+      online(false);
+      if (++fails >= 3) { es.close(); fetch('/api/state' + qs).then((r) => { if (r.status === 403) denied(); else startPoll(); }).catch(startPoll); }
+    };
+  }
+  connect();
+})();
+</script>
+</body>
+</html>

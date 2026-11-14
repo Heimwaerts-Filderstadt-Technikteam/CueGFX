@@ -274,6 +274,46 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
   server.exec('audience.access', { publicUrl: 'fragen.example.org' });
   ok(server._audienceUrl() === 'https://fragen.example.org', 'Eigene Domain wird für QR-Codes verwendet');
 
+  // Bühnenmonitor-Webseite: nur lesen
+  const sp = 49000 + Math.floor(Math.random() * 900);
+  server.exec('stage.access', { port: sp });
+  for (let i = 0; i < 40 && !(server.stageHttp && server.stageHttp.address() && server.stageHttp.address().port === sp); i++) await new Promise((r) => setTimeout(r, 50));
+  const stg = `http://127.0.0.1:${sp}`;
+  const now0 = Date.now();
+  server.project.questions = [
+    { id: 's1', text: 'Freigegeben A', author: 'Ann', likes: 2, likedBy: [], ts: now0 - 5000, status: 'live', resolved: false, active: false },
+    { id: 's2', text: 'Freigegeben B', author: 'Ben', likes: 7, likedBy: [], ts: now0 - 4000, status: 'live', resolved: false, active: true },
+    { id: 's3', text: 'Wartet', author: 'X', likes: 0, likedBy: [], ts: now0, status: 'pending', resolved: false, active: false },
+    { id: 's4', text: 'Abgelehnt', author: 'Y', likes: 0, likedBy: [], ts: now0, status: 'rejected', resolved: false, active: false },
+    { id: 's5', text: 'Gelöst', author: 'Z', likes: 9, likedBy: [], ts: now0, status: 'live', resolved: true, active: false }];
+  server.changed();
+  ok(server.stageStatus === 'läuft' && (await (await fetch(stg + '/')).text()).includes('id="stage"'), 'Bühnenmonitor-Port zeigt die Bühnenmonitor-Seite');
+  const stD = await (await fetch(stg + '/api/state')).json();
+  ok(stD.active && stD.active.id === 's2' && stD.list.map((x) => x.id).join() === 's1' && stD.total === 2, 'Bühnenmonitor: nur freigegebene, offene Fragen (keine wartenden/abgelehnten/gelösten)');
+  const stst = async (u, o) => (await fetch(stg + u, o)).status;
+  ok(await stst('/ws') === 404 && await stst('/api/cmd', { method: 'POST', body: '{"cmd":"qa.like","args":{"id":"s1"}}' }) === 405 && await stst('/audience') === 404 && await stst('/control') === 404 && await stst('/output/1') === 404,
+    'Bühnenmonitor-Port: kein WebSocket, keine Befehle, keine Publikumsseite/Steuerung');
+  // Live-Updates per Server-Sent Events
+  const ctl = new AbortController();
+  const rs = await fetch(stg + '/api/stream', { signal: ctl.signal });
+  const rd = rs.body.getReader(); let buf = '';
+  const readUntil = async (re) => { const t0 = Date.now(); while (!re.test(buf) && Date.now() - t0 < 3000) { const { value } = await rd.read(); buf += Buffer.from(value).toString(); } return re.test(buf); };
+  ok(await readUntil(/Freigegeben A/), 'Live-Stream liefert sofort die Fragen');
+  server.project.questions.push({ id: 's6', text: 'Ganz neue Frage', author: 'Neu', likes: 0, likedBy: [], ts: Date.now(), status: 'live', resolved: false, active: false });
+  server.changed();
+  ok(await readUntil(/Ganz neue Frage/), 'Neue Frage kommt live auf dem Bühnenmonitor an');
+  ctl.abort();
+  server.exec('stage.view', { view: { showAuthor: false, showLikes: false, sort: 'new', max: 1 } });
+  const sd2 = await (await fetch(stg + '/api/state')).json();
+  ok(sd2.list.length === 1 && sd2.list[0].id === 's6' && sd2.list[0].author === '' && sd2.list[0].likes === null && sd2.more === 1, 'Bühnenmonitor-Einstellungen: Reihenfolge, Anzahl, ohne Namen/Likes');
+  server.exec('stage.access', { key: 'geheim1' });
+  ok(await stst('/api/state') === 403 && await stst('/api/state?key=geheim1') === 200 && server._stageUrl().endsWith('?key=geheim1'), 'Zugangsschlüssel schützt die Fragen, Link enthält den Schlüssel');
+  let portErr = ''; try { server.exec('stage.access', { port: server.store.config.audiencePort }); } catch (e) { portErr = e.message; }
+  ok(/eigenen Port/.test(portErr), 'Bühnenmonitor braucht eigenen Port');
+  server.exec('stage.access', { port: 0, key: '' });
+  for (let i = 0; i < 40 && server.stageStatus !== 'aus'; i++) await new Promise((r) => setTimeout(r, 50));
+  ok(server.stageStatus === 'aus', 'Bühnenmonitor-Port abschaltbar');
+
   // Installierte Schriften
   for (let i = 0; i < 50 && !server.sysFonts.ready; i++) await new Promise((r) => setTimeout(r, 100));
   const sf = (await get('/api/system-fonts')).body;

@@ -887,6 +887,68 @@
     advModal.el.scrollTop = scroll;
   }
 
+  /* Bühnenmonitor-Webseite: Fragen nur ansehen – eigener Port für eine zweite Domain */
+  function stageCard(lanHost) {
+    const info = S.info || {};
+    const v = Object.assign({ mode: 'list', sort: 'likes', max: 6, showLikes: true, showAuthor: true, showActive: true, title: '', scale: 100, clock: false, emptyText: 'Noch keine Fragen', customCss: '' }, S.project.stageView || {});
+    const port = info.stagePort || 0, st = info.stageStatus || 'aus';
+    const urlInp = h('input', { class: 'inp', value: info.stagePublicUrl || '', placeholder: 'z. B. https://buehne.meine-gemeinde.de' });
+    const portInp = h('input', { class: 'inp', type: 'number', min: 0, max: 65535, value: port, style: { width: '110px' } });
+    const keyInp = h('input', { class: 'inp', value: info.stageKey || '', placeholder: 'leer = ohne Schlüssel (Übernehmen nicht vergessen)', style: { flex: 1, minWidth: 0 } });
+    const save = () => run('stage.access', { publicUrl: urlInp.value, port: Number(portInp.value) || 0, key: keyInp.value });
+    const setV = debounce((patch) => run('stage.view', { view: patch }), 250);
+    const vp = {};
+    const F = (def) => UI.field(def, v[def.key], (x) => { vp[def.key] = x; setV(Object.assign({}, vp)); }, env);
+    const link = info.stageUrl || '';
+    return h('div', { class: 'card' }, h('h3', null, 'Bühnenmonitor als Webseite (nur Fragen ansehen)', h('span', { class: 'sp' }),
+        h('span', { class: 'pill ' + (st === 'läuft' ? 'ok' : st === 'aus' ? '' : 'err') }, port ? `Port ${port}: ${st}` : 'aus')),
+      h('p', { class: 'hint', style: { marginTop: 0 } }, 'Eine eigene Seite, die nur die freigegebenen Fragen zeigt – ohne Abstimmen und ohne Fragen einreichen. Ideal für Moderation oder Bühne, auch über eine eigene Domain.'),
+      h('div', { class: 'grid2' },
+        h('div', { class: 'field' }, h('label', null, 'Öffentliche Adresse (optional)'), urlInp),
+        h('div', { class: 'field' }, h('label', null, 'Port (0 = aus)'), h('div', { class: 'row' }, portInp, h('button', { class: 'btn sm primary', onclick: save }, 'Übernehmen'))),
+        h('div', { class: 'field' }, h('label', null, 'Zugangsschlüssel (optional, wird an den Link gehängt)'), h('div', { class: 'row' }, keyInp,
+          h('button', { class: 'btn sm', title: 'Zufälligen Schlüssel erzeugen', onclick: () => { keyInp.value = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6); } }, '🎲'))),
+        h('div', { class: 'field' }, h('label', null, 'Link'), h('div', { class: 'row' },
+          h('code', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '6px 0' } }, link || '–'),
+          link ? h('button', { class: 'btn sm', onclick: () => { navigator.clipboard && navigator.clipboard.writeText(link); toast('Link kopiert', 'ok'); } }, 'Kopieren') : null,
+          link ? h('button', { class: 'btn sm', onclick: () => window.open(link, '_blank') }, 'Öffnen ↗') : null))),
+      h('div', { class: 'row', style: { marginTop: '4px' } },
+        h('button', { class: 'btn sm', disabled: !!(S.stageTest && S.stageTest.running), onclick: async () => {
+          const target = urlInp.value.trim();
+          if (!target) { toast('Bitte zuerst eine Adresse eintragen', 'err'); return; }
+          await run('stage.access', { publicUrl: target, key: keyInp.value });
+          S.stageTest = { running: true }; renderAudienceAdvanced(true);
+          try { S.stageTest = await api('/api/stage-test', { method: 'POST', body: JSON.stringify({ url: target }) }); }
+          catch (e) { S.stageTest = { ok: false, steps: [{ ok: false, label: 'Test', detail: e.message }] }; }
+          S.stageTest.at = new Date(); renderAudienceAdvanced(true);
+        } }, S.stageTest && S.stageTest.running ? 'Teste …' : '🔍 Domain testen'),
+        S.stageTest && !S.stageTest.running ? h('span', { class: 'pill ' + (S.stageTest.ok ? 'ok' : 'err') }, S.stageTest.ok ? 'Erreichbar – Live-Updates laufen' : 'Problem gefunden') : null),
+      S.stageTest && S.stageTest.steps ? h('ul', { class: 'test-steps' }, S.stageTest.steps.map((x) =>
+        h('li', { class: x.ok ? 'ok' : x.warn ? 'warn' : 'err' }, h('b', null, (x.ok ? '✓ ' : x.warn ? '! ' : '✗ ') + x.label), ' – ', x.detail))) : null,
+      h('h4', { style: { margin: '14px 0 6px' } }, 'Anzeige'),
+      h('div', { class: 'grid2' }, [
+        { key: 'mode', label: 'Was angezeigt wird', type: 'select', options: [['list', 'Aktive Frage + die nächsten Fragen'], ['activeOrNext', 'Groß: aktive Frage, sonst die nächste'], ['next', 'Groß: nur die nächste Frage'], ['active', 'Groß: nur die aktive Frage']] },
+        { key: 'sort', label: 'Reihenfolge der Liste', type: 'select', options: [['likes', 'Meiste Likes zuerst'], ['old', 'Älteste zuerst'], ['new', 'Neueste zuerst']] },
+        { key: 'max', label: 'Anzahl Fragen in der Liste', type: 'number', min: 1, max: 30 },
+        { key: 'scale', label: 'Schriftgröße %', type: 'number', min: 40, max: 300, step: 10 },
+        { key: 'title', label: 'Überschrift (optional)', type: 'text' },
+        { key: 'emptyText', label: 'Text ohne Fragen', type: 'text' },
+        { key: 'showActive', label: 'Aktive Frage hervorheben', type: 'toggle' },
+        { key: 'showLikes', label: 'Anzahl Likes zeigen', type: 'toggle' },
+        { key: 'showAuthor', label: 'Namen zeigen', type: 'toggle' },
+        { key: 'clock', label: 'Uhrzeit zeigen', type: 'toggle' }
+      ].map(F)),
+      h('details', { class: 'howto' }, h('summary', null, 'Eigenes CSS für den Bühnenmonitor'),
+        F({ key: 'customCss', label: 'CSS (z. B. .q .txt { font-size: 5vh; })', type: 'textarea', rows: 4 })),
+      h('details', { class: 'howto' }, h('summary', null, 'Anleitung: Nginx Proxy Manager'),
+        h('ol', null,
+          h('li', null, 'DNS-Eintrag der zweiten Domain (z. B. ', h('code', null, 'buehne.…'), ') auf den Nginx Proxy Manager setzen.'),
+          h('li', null, 'Neuer Proxy Host: Scheme ', h('code', null, 'http'), ', Forward Hostname/IP ', h('code', null, lanHost), ', Forward Port ', h('code', null, String(port || 4003)), '.'),
+          h('li', null, 'Reiter „Advanced“: ', h('code', null, 'proxy_buffering off;'), ' eintragen – sonst kommen neue Fragen verzögert an. Websockets werden hier nicht gebraucht.'),
+          h('li', null, 'Reiter „SSL“: Let’s-Encrypt-Zertifikat, „Force SSL“ an. Oben die Adresse eintragen und testen.')),
+        h('p', { class: 'hint' }, 'Über diesen Port ist nur das Ansehen möglich: Abstimmen, Fragen einreichen und jede Steuerung sind dort technisch gar nicht vorhanden. Mit Zugangsschlüssel sehen die Fragen nur Personen, die den vollständigen Link haben.')));
+  }
+
   const AUD_FONTS = [['', 'Systemschrift des Handys'], ['Inter, "Helvetica Neue", Arial, sans-serif', 'Inter / Helvetica'], ['Georgia, serif', 'Georgia'], ['"Trebuchet MS", Arial, sans-serif', 'Trebuchet'], ['Verdana, sans-serif', 'Verdana']];
   function viewAudienceDesign(ed, lan) {
     const info = S.info || {};
@@ -928,6 +990,9 @@
           h('li', null, 'Reiter „SSL“: Let’s-Encrypt-Zertifikat anfordern, „Force SSL“ an.'),
           h('li', null, 'Oben die Domain mit https:// als öffentliche Adresse eintragen.')),
         h('p', { class: 'hint' }, 'Über den öffentlichen Port ist ausschließlich die Publikumsseite erreichbar (Fragen, Likes, Umfragen) – Steuerung, Ausgänge und Schnittstellen bleiben im lokalen Netz. Den Steuerungs-Port ', h('code', null, String(info.port || 4001)), ' nicht im Proxy freigeben.'))));
+
+    // Bühnenmonitor als Webseite (nur ansehen)
+    ed.appendChild(stageCard(lanHost));
 
     // Gestaltung
     const upd = debounce((patch) => run('audience.design', { design: patch }), 250);
