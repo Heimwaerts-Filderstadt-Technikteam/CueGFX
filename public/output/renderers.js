@@ -1506,8 +1506,11 @@
   };
 
   /* ---------------- Q&A live (Fragen-Wand / einzelne Frage) ---------------- */
-  R.qawall = () => {
+  R.qawall = (c0) => {
     const el = div('qaw');
+    // Anderes Layout auf ausgewählten Ausgängen (z. B. Bühnenmonitor)
+    const altList = (v) => (Array.isArray(v) ? v : String(v || '').split(/[\s,;]+/)).map(String).filter(Boolean);
+    const isAlt = (dd) => !!(dd && c0 && altList(dd.altOutputs).includes(String(c0.outputId)));
     let d = null, list = [], shownAt = 0, lastRot = -1, ctx = null, singleId = null;
     const visibleQs = (project) => (project.questions || []).filter((q) => q.status === 'live' && !q.resolved);
     const sortQs = (qs, mode) => qs.slice().sort(mode === 'newest' ? (a, b) => b.ts - a.ts : mode === 'oldest' ? (a, b) => a.ts - b.ts : (a, b) => (b.likes - a.likes) || (a.ts - b.ts));
@@ -1675,18 +1678,59 @@
       fit();
     }
 
+    /* Nur die Frage – ohne Box, Titel, QR-Code */
+    function pickAlt(c) {
+      const all = visibleQs(c.project);
+      const active = all.find((q) => q.active) || null;
+      const next = sortQs(all.filter((q) => !q.active), 'likes')[0] || null; // meiste Likes, bei Gleichstand die ältere
+      return d.altMode === 'active' ? active : d.altMode === 'activeOrNext' ? (active || next) : next;
+    }
+    function fitAlt() {
+      const box = el.querySelector('.qaw-alt-in'); if (!box) return;
+      let fs = Math.max(20, Math.min(250, Number(d.altFontSize) || 80));
+      box.style.setProperty('--qafs', fs + 'px');
+      const maxH = el.clientHeight;
+      while (maxH && box.offsetHeight > maxH && fs > 20) { fs = Math.floor(fs * 0.92); box.style.setProperty('--qafs', fs + 'px'); }
+    }
+    function renderAlt(c) {
+      const q = pickAlt(c);
+      if (!el.querySelector('.qaw-alt-in')) el.innerHTML = '<div class="qaw-alt-in"></div>';
+      el.style.setProperty('--qaj', { left: 'flex-start', right: 'flex-end' }[d.altAlign] || 'center');
+      el.style.setProperty('--qaa', { top: 'flex-start', bottom: 'flex-end' }[d.altVAlign] || 'center');
+      el.style.setProperty('--qata', d.altAlign || 'center');
+      el.style.setProperty('--qaw', (Number(d.altWidth) || 1600) + 'px');
+      el.style.setProperty('--qac', d.altColor || 'var(--text)');
+      el.classList.toggle('alt-shadow', d.altShadow !== false);
+      const box = el.querySelector('.qaw-alt-in');
+      const text = q ? q.text : (d.altEmpty ? c.sub(d.altEmpty) : '');
+      const key = (q ? q.id : '-') + '|' + text + '|' + (q && d.altAuthor ? q.author : '');
+      if (box._key === key) { fitAlt(); return; }
+      const changed = (box._qid || null) !== (q ? q.id : null) && box._key !== undefined;
+      box._key = key; box._qid = q ? q.id : null;
+      const html = text ? `<div class="qaw-alt-q${q ? '' : ' empty'}">${nl(text)}</div>${q && d.altAuthor && q.author ? `<div class="qaw-alt-a">${esc(q.author)}</div>` : ''}` : '';
+      if (changed) {
+        box.classList.add('swap');
+        setTimeout(() => { if (box._key !== key) return; box.innerHTML = html; box.classList.remove('swap'); fitAlt(); }, 350);
+      } else { box.innerHTML = html; fitAlt(); }
+    }
+
     let lastFitCheck = 0;
     return {
       el, needsTick: true,
+      isFull: (g) => isAlt(g.data),
       depKey: (g, project) => JSON.stringify(visibleQs(project).map((q) => [q.id, q.text, q.author, q.likes, q.active, q.ts])),
       update(g, c) {
         d = g.data; ctx = c;
         if (g.shownAt !== shownAt) { shownAt = g.shownAt || c.now(); lastRot = -1; }
-        el.className = 'qaw mode-' + d.mode;
-        if (el.dataset.mode !== d.mode) { el.dataset.mode = d.mode; el.innerHTML = ''; }
-        if (d.mode === 'single') renderSingle(c, c.now()); else renderWall(c);
+        const mode = isAlt(d) ? 'alt' : d.mode;
+        c.setFull(mode === 'alt');
+        el.className = 'qaw mode-' + mode;
+        if (el.dataset.mode !== mode) { el.dataset.mode = mode; el.innerHTML = ''; el.style.cssText = ''; }
+        if (mode === 'alt') renderAlt(c);
+        else if (d.mode === 'single') renderSingle(c, c.now()); else renderWall(c);
       },
       tick(now) {
+        if (d && isAlt(d)) { if (now - lastFitCheck > 1000) { lastFitCheck = now; fitAlt(); } return; }
         // Regelmäßig nachmessen (Schriften geladen, Fenster/Skalierung geändert)
         if (d && now - lastFitCheck > 400) {
           lastFitCheck = now;

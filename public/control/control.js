@@ -36,6 +36,7 @@
   const env = {
     media: () => S.media, reloadMedia,
     polls: () => (S.project ? S.project.polls : []),
+    outputs: () => (S.project && S.project.settings && S.project.settings.outputs) || [],
     fonts: fontNames,
     sysFonts: () => S.sysFonts || [],
     onMediaChange: (f) => { mediaListeners.add(f); },
@@ -848,7 +849,10 @@
       acts.push(h('button', { class: 'btn xs', onclick: () => run('qa.approve', { id: q.id }) }, '✓ Doch freigeben'));
     }
     acts.push(h('button', { class: 'btn xs danger', title: 'Löschen', onclick: () => run('qa.remove', { id: q.id }) }, '🗑'));
-    return h('div', { class: `q ${q.status}${q.active ? ' active' : ''}${q.resolved ? ' resolved' : ''}` },
+    const sel = S.qaSel || (S.qaSel = new Set());
+    const cb = h('input', { type: 'checkbox', class: 'q-sel', title: 'Für Sammelaktion markieren', checked: sel.has(q.id), onchange: () => { cb.checked ? sel.add(q.id) : sel.delete(q.id); row.classList.toggle('sel', cb.checked); if (opts.onSel) opts.onSel(); } });
+    const row = h('div', { class: `q ${q.status}${q.active ? ' active' : ''}${q.resolved ? ' resolved' : ''}${sel.has(q.id) ? ' sel' : ''}` },
+      cb,
       h('div', { class: 'q-likes', title: 'Likes' }, h('span', null, '▲'), h('b', null, q.likes || 0)),
       h('div', null,
         q.active ? h('span', { class: 'pill warn', style: { marginBottom: '4px', display: 'inline-block' } }, 'AKTIV') : null,
@@ -857,6 +861,7 @@
         h('div', { class: 'qm' }, `${q.author} · ${time}${q.edited ? ' · bearbeitet' : ''}`,
           (q.flagged || []).length ? h('span', { class: 'pill err', style: { marginLeft: '6px' }, title: 'Sperrwort-Treffer' }, '⚑ ' + q.flagged.join(', ')) : null)),
       h('div', { class: 'qa' }, acts));
+    return row;
   }
 
   /* ---------- Erweiterte Publikums-Einstellungen (eigenes Fenster) ---------- */
@@ -1018,7 +1023,7 @@
             h('div', { class: 'field' }, h('label', null, 'Maximale Länge (Zeichen)'), h('input', { class: 'inp', type: 'number', min: 20, max: 2000, value: qs.maxLength, onchange: (e) => setQs({ maxLength: Number(e.target.value) }) }))),
           h('div', { class: 'row', style: { marginTop: '10px', gap: '16px' } },
             sw('open', 'Fragen erlaubt'), sw('moderation', 'Fragen vor Freigabe prüfen', 'Neue Fragen landen zuerst unter „Prüfen“'),
-            sw('allowLikes', 'Likes erlaubt'), sw('showQuestions', 'Publikum sieht Fragenliste'), sw('requireName', 'Name Pflicht')),
+            sw('allowLikes', 'Likes erlaubt'), sw('showQuestions', 'Publikum sieht Fragenliste'), sw('requireName', 'Name Pflicht (aus = kein Namensfeld)')),
           h('p', { class: 'hint' }, 'Tipp: Grafik „Q&A live“ mit QR-Code einblenden oder im QR-Code-Grafiktyp ', h('code', null, '{{audience_url}}'), ' verwenden.'))),
       h('button', { class: 'gear-btn', title: 'Erweiterte Einstellungen: eigene Domain & Gestaltung', onclick: () => openAudienceAdvanced() }, '⚙')));
 
@@ -1061,7 +1066,38 @@
       const act = pool.find((q) => q.active);
       shown = pending.slice().sort((a, b) => a.ts - b.ts).concat(act ? [act] : [], pool.filter((q) => q !== act));
     } else shown = (S.qaFilter === 'resolved' ? resolved : rejected).slice().sort(sorter);
-    const qlist = h('div', { class: 'qlist' }, shown.length ? shown.map((q) => qaRow(q)) : h('div', { class: 'empty' }, { open: 'Keine offenen Fragen.', resolved: 'Noch nichts gelöst.', rejected: 'Nichts abgelehnt.' }[S.qaFilter]));
+    // Markierte Fragen: nur die der aktuellen Ansicht zählen
+    const sel = S.qaSel || (S.qaSel = new Set());
+    const allIds = new Set(p.questions.map((q) => q.id));
+    for (const id of [...sel]) if (!allIds.has(id)) sel.delete(id);
+    if (S.qaSelView !== S.qaFilter) { sel.clear(); S.qaSelView = S.qaFilter; }
+    const bulkBar = h('div', { class: 'qa-bulk' });
+    const selAll = h('input', { type: 'checkbox', title: 'Alle in dieser Ansicht markieren', onchange: () => { if (selAll.checked) shown.forEach((q) => sel.add(q.id)); else sel.clear(); qlist.querySelectorAll('.q').forEach((r, i) => { const c = r.querySelector('.q-sel'); if (c) { c.checked = selAll.checked; r.classList.toggle('sel', selAll.checked); } }); updBulk(); } });
+    const doBulk = async (action, label, danger) => {
+      const ids = shown.filter((q) => sel.has(q.id)).map((q) => q.id);
+      if (!ids.length) return;
+      if (danger && !(await UI.confirm(`${ids.length} ${ids.length === 1 ? 'Frage' : 'Fragen'} ${label}?`, 'Das lässt sich nicht rückgängig machen.', label[0].toUpperCase() + label.slice(1)))) return;
+      try { const r = await cmd('qa.bulk', { ids, action }); sel.clear(); toast(`${r.count} ${r.count === 1 ? 'Frage' : 'Fragen'}: ${label}`, 'ok'); renderTab(true); } catch (e) { toast(e.message, 'err'); }
+    };
+    const actsFor = {
+      open: [['approve', '✓ Freigeben', 'freigegeben'], ['resolve', '✓ Gelöst', 'als gelöst markiert'], ['reject', '✕ Ablehnen', 'abgelehnt'], ['resetLikes', '▲ Likes auf 0', 'Likes zurückgesetzt']],
+      resolved: [['reopen', '↺ Wieder offen', 'wieder geöffnet'], ['resetLikes', '▲ Likes auf 0', 'Likes zurückgesetzt']],
+      rejected: [['approve', '✓ Doch freigeben', 'freigegeben'], ['pending', '↺ Zur Prüfung', 'zur Prüfung zurückgelegt']]
+    }[S.qaFilter];
+    function updBulk() {
+      const n = shown.filter((q) => sel.has(q.id)).length;
+      selAll.checked = n > 0 && n === shown.length; selAll.indeterminate = n > 0 && n < shown.length;
+      bulkBar.innerHTML = '';
+      bulkBar.classList.toggle('on', n > 0);
+      bulkBar.append(h('label', { class: 'chk' }, selAll, n ? ` ${n} markiert` : ' Alle markieren'));
+      if (n) {
+        for (const [a, l, done] of actsFor) bulkBar.appendChild(h('button', { class: 'btn xs', onclick: () => doBulk(a, done) }, l));
+        bulkBar.appendChild(h('button', { class: 'btn xs danger', onclick: () => doBulk('delete', 'löschen', true) }, '🗑 Löschen'));
+        bulkBar.appendChild(h('button', { class: 'btn xs', onclick: () => { sel.clear(); renderTab(true); } }, 'Auswahl aufheben'));
+      }
+    }
+    const qlist = h('div', { class: 'qlist' }, shown.length ? shown.map((q) => qaRow(q, { onSel: updBulk })) : h('div', { class: 'empty' }, { open: 'Keine offenen Fragen.', resolved: 'Noch nichts gelöst.', rejected: 'Nichts abgelehnt.' }[S.qaFilter]));
+    updBulk();
     const active = p.questions.find((q) => q.active);
     const bulk = [];
     if (S.qaFilter === 'open' && pending.length > 1) bulk.push(h('button', { class: 'btn xs ok', onclick: () => run('qa.approveAll') }, 'Alle freigeben (ohne Sperrwort-Treffer)'));
@@ -1074,7 +1110,11 @@
           if (!g) { const r = await cmd('graphic.add', { type: 'qawall', name: 'Q&A live' }); g = { id: r.id }; }
           select(g.id);
         } }, 'Q&A-Grafik'),
-        h('button', { class: 'btn xs', title: 'Fragen als Markdown oder PDF exportieren', onclick: (e) => qaExportMenu(e.currentTarget) }, '⤓ Export')),
+        h('button', { class: 'btn xs', title: 'Fragen als Markdown oder PDF exportieren', onclick: (e) => qaExportMenu(e.currentTarget) }, '⤓ Export'),
+        h('button', { class: 'btn xs danger', title: 'Alle Fragen löschen (offen, gelöst, abgelehnt) – setzt die Q&A-Wand zurück', disabled: !p.questions.length, onclick: async () => {
+          const n = S.project.questions.length;
+          if (await UI.confirm('Q&A zurücksetzen?', `Alle ${n} Fragen – offene, gelöste und abgelehnte – werden gelöscht. Die Q&A-Wand ist danach leer. Tipp: vorher über „⤓ Export“ sichern.`, 'Alle löschen')) { await run('qa.clear', { scope: 'all' }); sel.clear(); }
+        } }, '🗑 Alle Fragen löschen')),
       h('div', { class: 'row', style: { marginBottom: '10px' } },
         ...filters.map(([k, l]) => h('button', { class: 'btn sm' + (S.qaFilter === k ? ' on' : ''), onclick: () => { S.qaFilter = k; renderTab(true); } }, l)),
         h('span', { class: 'grow' }), ...bulk),
@@ -1083,6 +1123,7 @@
         h('span', { class: 'grow' }),
         h('button', { class: 'btn sm primary', title: 'Aktive Frage als gelöst markieren und nächste (beliebteste) aktivieren', onclick: () => run('qa.activeNext', { sort: S.qaSort || 'likes' }) }, 'Nächste Frage ▶'),
         active ? h('button', { class: 'btn sm', onclick: () => run('qa.resolveActive') }, '✓ Aktive gelöst') : null),
+      shown.length ? bulkBar : null,
       qlist));
 
     // Umfragen

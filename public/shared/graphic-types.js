@@ -343,6 +343,17 @@
       { key: 'qrText', label: 'Text am QR-Code', type: 'text', default: 'Stell deine Frage', showIf: { showQr: true } },
       { key: 'emptyText', label: 'Text ohne Fragen (leer = ausblenden)', type: 'text', default: 'Noch keine Fragen – jetzt mitmachen!' },
       { key: 'width', label: 'Breite (px)', type: 'number', default: 1100, min: 400, max: 1900 },
+      // Anderes Layout auf ausgewählten Ausgängen (z. B. Bühnenmonitor: nur die nächste Frage)
+      { key: 'altOutputs', label: 'Anderes Layout auf diesen Ausgängen', type: 'outputs', default: [], group: 'Anderer Ausgang' },
+      { key: 'altMode', label: 'Was dort zu sehen ist', type: 'select', options: [['next', 'Nur die nächste Frage (meiste Likes)'], ['activeOrNext', 'Aktive Frage, sonst die nächste'], ['active', 'Nur die aktive Frage']], default: 'next', group: 'Anderer Ausgang' },
+      { key: 'altFontSize', label: 'Schriftgröße (px, wird bei langen Fragen kleiner)', type: 'number', default: 80, min: 20, max: 250, group: 'Anderer Ausgang' },
+      { key: 'altColor', label: 'Schriftfarbe (leer = Theme)', type: 'color', default: '', group: 'Anderer Ausgang' },
+      { key: 'altAlign', label: 'Ausrichtung', type: 'select', options: [['center', 'Mitte'], ['left', 'Links'], ['right', 'Rechts']], default: 'center', group: 'Anderer Ausgang' },
+      { key: 'altVAlign', label: 'Vertikal', type: 'select', options: [['middle', 'Mitte'], ['top', 'Oben'], ['bottom', 'Unten']], default: 'middle', group: 'Anderer Ausgang' },
+      { key: 'altWidth', label: 'Max. Breite (px)', type: 'number', default: 1600, min: 300, max: 1920, group: 'Anderer Ausgang' },
+      { key: 'altShadow', label: 'Textschatten', type: 'toggle', default: true, group: 'Anderer Ausgang' },
+      { key: 'altAuthor', label: 'Namen anzeigen', type: 'toggle', default: false, group: 'Anderer Ausgang' },
+      { key: 'altEmpty', label: 'Text ohne Frage (leer = nichts anzeigen)', type: 'text', default: '', group: 'Anderer Ausgang' },
       ...commonPositioned('middle-right')
     ]
   });

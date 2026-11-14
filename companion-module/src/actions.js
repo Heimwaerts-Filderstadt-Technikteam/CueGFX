@@ -229,6 +229,11 @@ function buildActions(self) {
     },
     qa_resolve_active: { name: 'Q&A: Aktive Frage gelöst', options: [], callback: () => self.run('qa.resolveActive') },
     qa_approve_all: { name: 'Q&A: Alle wartenden Fragen freigeben', description: 'Fragen mit Sperrwort-Treffer bleiben stehen', options: [], callback: () => self.run('qa.approveAll') },
+    qa_clear: {
+      name: 'Q&A: Fragen löschen (zurücksetzen)',
+      options: [{ type: 'dropdown', id: 'scope', label: 'Welche', default: 'all', choices: [{ id: 'all', label: 'Alle Fragen (offen, gelöst, abgelehnt)' }, { id: 'resolved', label: 'Gelöste und abgelehnte' }, { id: 'rejected', label: 'Nur abgelehnte' }] }],
+      callback: (ev) => self.run('qa.clear', { scope: ev.options.scope })
+    },
     qa_moderate_next: {
       name: 'Q&A: Älteste wartende Frage freigeben/ablehnen',
       description: 'Moderation per Taste – der Text steht in $(cuegfx:qa_pending_text)',

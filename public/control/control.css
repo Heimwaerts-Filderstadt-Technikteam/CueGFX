@@ -195,7 +195,7 @@ table.tbl td input, table.tbl td select { width: 100%; background: var(--bg); bo
 
 /* ---------- Publikum / Chat ---------- */
 .qlist { display: flex; flex-direction: column; gap: 6px; }
-.q { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; }
+.q { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; display: grid; grid-template-columns: auto auto 1fr auto; gap: 10px; align-items: start; }
 .q.active { border-color: var(--warn); box-shadow: inset 4px 0 0 var(--warn); } .q.resolved, .q.rejected { opacity: .6; } .q.pending { border-style: dashed; }
 .q .qt { white-space: pre-wrap; }
 .q .qm { font-size: 11px; color: var(--fg3); }
@@ -388,3 +388,13 @@ a.btn { text-decoration: none; color: inherit; display: inline-block; }
 .sl-drawn { display: flex; flex-wrap: wrap; gap: 4px; }
 .sl-drawn span { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); }
 .sl-drawn span.used { opacity: .4; text-decoration: line-through; }
+
+.out-pick { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 0; }
+.out-pick .chk { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; cursor: pointer; }
+
+.q .q-sel { margin-top: 10px; width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent, #3b82f6); }
+.q.sel { border-color: var(--accent, #3b82f6); background: rgba(59,130,246,.08); }
+.qa-bulk { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 10px; margin-bottom: 6px; min-height: 30px; border-radius: 6px; font-size: 13px; }
+.qa-bulk.on { background: rgba(59,130,246,.12); border: 1px solid rgba(59,130,246,.4); position: sticky; top: 0; z-index: 2; }
+.qa-bulk .chk { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; margin-right: 8px; color: var(--fg2); }
+.qa-bulk.on .chk { color: var(--fg); font-weight: 600; }

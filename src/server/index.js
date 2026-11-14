@@ -1436,8 +1436,8 @@ function coerce(type, key, v) {
   if (!f) return v;
   if (f.type === 'number') { const n = Number(v); return isNaN(n) ? 0 : n; }
   if (f.type === 'toggle') return v === true || v === 'true' || v === '1' || v === 1 || v === 'on';
-  if (f.type === 'list' || f.type === 'builder' || f.type === 'framebuilder') {
-    if (typeof v === 'string') { try { return JSON.parse(v); } catch (_) { return []; } }
+  if (f.type === 'list' || f.type === 'builder' || f.type === 'framebuilder' || f.type === 'outputs') {
+    if (typeof v === 'string') { try { return JSON.parse(v); } catch (_) { return f.type === 'outputs' ? v.split(/[\s,;]+/).filter(Boolean) : []; } }
     return Array.isArray(v) ? v : [];
   }
   if (f.type === 'timer') return typeof v === 'object' && v ? v : Types.defaultTimer(parseTime(v));

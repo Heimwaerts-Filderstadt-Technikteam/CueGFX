@@ -228,6 +228,18 @@ const ok = (cond, msg) => { if (cond) { passed++; console.log('  ✔ ' + msg); }
     ok(server.project.polls.find((p) => p.id === rt).ratings[3] === 1, 'Bewertung');
     const r = await send(ctl, { cmd: 'qa.show', args: { id: q1.id } });
     ok(r.ok && server.project.graphics.find((g) => g.id === r.result.graphicId).live && q1.active, 'Frage einzeln auf Sendung');
+    // Sammelaktionen und Komplett-Reset
+    const qids = server.project.questions.filter((x) => x.status === 'live').map((x) => x.id).slice(0, 2);
+    const bk = await cmd('qa.bulk', { ids: qids, action: 'reject' });
+    ok(bk.body.result.count === qids.length && qids.every((id) => server.project.questions.find((x) => x.id === id).status === 'rejected'), 'Sammelaktion: mehrere Fragen ablehnen');
+    await cmd('qa.bulk', { ids: qids, action: 'approve' });
+    ok(qids.every((id) => { const x = server.project.questions.find((y) => y.id === id); return x.status === 'live' && !x.resolved; }), 'Sammelaktion: wieder freigeben');
+    const before = server.project.questions.length;
+    await cmd('qa.bulk', { ids: [qids[0]], action: 'delete' });
+    ok(server.project.questions.length === before - 1, 'Sammelaktion: löschen');
+    ok((await cmd('qa.bulk', { ids: [], action: 'resolve' })).status === 400 && (await cmd('qa.bulk', { ids: [qids[1]], action: 'quatsch' })).status === 400, 'Sammelaktion: leere Auswahl / unbekannte Aktion abgewiesen');
+    await cmd('qa.clear', { scope: 'all' });
+    ok(server.project.questions.length === 0, 'Alle Fragen löschen (Q&A zurücksetzen)');
     aud2.w.close(); aud3.w.close();
     ctl.w.close(); aud.w.close();
   } else console.log('  (WebSocket-Test übersprungen – Node 22 oder neuer nötig)');

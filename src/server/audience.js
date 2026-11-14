@@ -223,6 +223,23 @@ function createAudience(server) {
         p.questions = p.questions.filter((x) => scope === 'all' ? false : scope === 'rejected' ? x.status !== 'rejected' : !(x.resolved || x.status === 'rejected'));
         return true;
       }
+      /* Sammelaktion auf mehrere markierte Fragen */
+      case 'qa.bulk': {
+        const ids = new Set((Array.isArray(a.ids) ? a.ids : String(a.ids || '').split(',')).map(String).filter(Boolean));
+        const sel = p.questions.filter((x) => ids.has(x.id));
+        const act = String(a.action || '');
+        if (!sel.length) throw Object.assign(new Error('Keine Fragen ausgewählt'), { code: 400 });
+        if (act === 'delete') { p.questions = p.questions.filter((x) => !ids.has(x.id)); return { count: sel.length }; }
+        for (const q of sel) {
+          if (act === 'approve' || act === 'reopen') { q.status = 'live'; q.resolved = false; }
+          else if (act === 'reject') { q.status = 'rejected'; q.active = false; }
+          else if (act === 'resolve') { if (q.status === 'live') { q.resolved = true; q.active = false; } }
+          else if (act === 'pending') { q.status = 'pending'; q.active = false; q.resolved = false; }
+          else if (act === 'resetLikes') { q.likedBy = []; q.likes = 0; }
+          else throw Object.assign(new Error('Unbekannte Aktion: ' + act), { code: 400 });
+        }
+        return { count: sel.length };
+      }
       case 'qa.resetLikes': for (const q of p.questions) { q.likedBy = []; q.likes = 0; } return true;
       case 'qa.settings': {
         const keys = ['open', 'requireName', 'title', 'moderation', 'blockedWords', 'blockedAction', 'allowLikes', 'showQuestions', 'maxLength', 'allowAnonymous'];

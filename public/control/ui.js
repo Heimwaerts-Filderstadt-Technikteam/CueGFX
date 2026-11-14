@@ -222,6 +222,25 @@
         wrap.append(label, h('div', { class: 'mediaf' }, thumb, sel, h('button', { class: 'btn sm', onclick: () => file.click() }, 'Hochladen'), url, file));
         break;
       }
+      case 'outputs': {
+        // Mehrfachauswahl der Ausgänge (Häkchen)
+        input = h('div', { class: 'out-pick' });
+        const norm = (v) => (Array.isArray(v) ? v : String(v || '').split(/[\s,;]+/)).map(String).filter(Boolean);
+        let cur = norm(value);
+        const fill = () => {
+          input.innerHTML = '';
+          const outs = env && env.outputs ? env.outputs() : [];
+          if (!outs.length) input.appendChild(h('span', { class: 'hint' }, 'Keine Ausgänge angelegt'));
+          for (const o of outs) {
+            const cb = h('input', { type: 'checkbox', checked: cur.includes(o.id), onchange: () => { cur = cb.checked ? cur.concat([o.id]).filter((x, i, a) => a.indexOf(x) === i) : cur.filter((x) => x !== o.id); onChange(cur.slice()); } });
+            input.appendChild(h('label', { class: 'chk' }, cb, ` ${o.name || 'Ausgang ' + o.id}`));
+          }
+        };
+        fill();
+        setValue = (v) => { if (isFocused(input)) return; cur = norm(v); fill(); };
+        wrap.append(label, input);
+        break;
+      }
       case 'poll': {
         input = h('select', { onchange: () => onChange(input.value) });
         const fill = (v) => {

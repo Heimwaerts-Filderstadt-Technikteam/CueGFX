@@ -158,7 +158,9 @@
     $('ask').hidden = !qa.open; $('qa-closed').hidden = !!qa.open;
     $('q').placeholder = qa.title || 'Stell deine Frage …';
     $('q').maxLength = qa.maxLength || 300; $('max').textContent = qa.maxLength || 300;
-    $('name').placeholder = qa.requireName ? 'Dein Name (Pflicht)' : 'Dein Name (optional)';
+    // Namensfeld nur, wenn ein Name Pflicht ist
+    $('name').placeholder = 'Dein Name (Pflicht)';
+    $('name').style.display = qa.requireName ? '' : 'none';
     // Wenn nur Umfragen laufen, direkt dorthin
     if (!tabChosen) setTab(!qa.open && m.polls.length ? 'polls' : 'qa');
     $('b-polls').hidden = !m.polls.length; $('b-polls').textContent = m.polls.length;
@@ -210,13 +212,13 @@
   });
   $('q').addEventListener('input', () => { $('cnt').textContent = $('q').value.length; });
   $('send').addEventListener('click', async () => {
-    const text = $('q').value.trim(), author = $('name').value.trim(), msg = $('qa-msg');
+    const text = $('q').value.trim(), author = pub && pub.qa.requireName ? $('name').value.trim() : '', msg = $('qa-msg');
     if (!text) { msg.className = 'msg err'; msg.textContent = 'Bitte eine Frage eingeben.'; return; }
     if (pub && pub.qa.requireName && !author) { msg.className = 'msg err'; msg.textContent = 'Bitte deinen Namen angeben.'; return; }
     $('send').disabled = true;
     try {
       const r = await client.cmd('qa.submit', { text, author });
-      store.set('cue.name', author);
+      if (author) store.set('cue.name', author);
       $('q').value = ''; $('cnt').textContent = '0';
       if (r && r.status === 'pending') { msg.className = 'msg info'; msg.textContent = 'Danke! Deine Frage wird kurz geprüft und erscheint dann in der Liste.'; }
       else { msg.className = 'msg ok'; msg.textContent = 'Danke! Deine Frage ist jetzt in der Liste.'; }

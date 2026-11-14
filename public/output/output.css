@@ -469,3 +469,12 @@ body.audio-only #stage { visibility: hidden; }
 @keyframes slWin { 0% { transform: scale(1); } 15% { transform: scale(1.06); } 30% { transform: scale(.98); } 45% { transform: scale(1.02); } 100% { transform: scale(1); } }
 .sl-res { align-self: center; font-size: calc(26px * var(--fs)); font-weight: 800; color: var(--accent); text-transform: uppercase; letter-spacing: .12em; animation: lbIn .5s ease-out; }
 .sl-fx { position: absolute; left: 50%; top: 50%; width: 140%; height: auto; aspect-ratio: auto; transform: translate(-50%, -60%); pointer-events: none; z-index: 3; }
+
+/* Q&A-Wand: anderes Layout – nur die Frage */
+.qaw.mode-alt { position: absolute; inset: var(--safe); display: flex; justify-content: var(--qaj, center); align-items: var(--qaa, center); background: none; box-shadow: none; padding: 0; }
+.qaw-alt-in { max-width: min(var(--qaw, 1600px), 100%); text-align: var(--qata, center); color: var(--qac, var(--text)); transition: opacity .35s, transform .35s; }
+.qaw-alt-in.swap { opacity: 0; transform: translateY(14px); }
+.qaw-alt-q { font-family: var(--font-heading); font-weight: 800; font-size: calc(var(--qafs, 80px) * var(--fs)); line-height: 1.15; overflow-wrap: anywhere; }
+.qaw-alt-q.empty { opacity: .7; font-weight: 600; }
+.qaw-alt-a { margin-top: .5em; font-size: calc(var(--qafs, 80px) * .42 * var(--fs)); opacity: .75; font-weight: 600; }
+.qaw.alt-shadow .qaw-alt-in { text-shadow: 0 3px 14px rgba(0,0,0,.6), 0 1px 3px rgba(0,0,0,.6); }
