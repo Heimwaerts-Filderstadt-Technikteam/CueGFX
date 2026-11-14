@@ -157,7 +157,9 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
-  displays = new DisplayManager({ BrowserWindow, screen, getPort: port, log });
+  displays = new DisplayManager({ BrowserWindow, screen, getPort: port, log,
+    // Bildschirm unter neuer ID wiedergefunden → gespeicherte Konfiguration aktualisieren
+    onConfigChange: (cfg) => { try { server.store.config.displayOutputs = cfg; server.store.saveConfig(); server._pushHardware(); } catch (_) {} } });
   decklink = new DeckLinkManager({ BrowserWindow, getPort: port, getProject: () => server.project, log });
   // Gespeicherte Hardware-Konfiguration wiederherstellen
   try { displays.configure(server.store.config.displayOutputs || []); } catch (e) { log('Bildschirme:', e.message); }

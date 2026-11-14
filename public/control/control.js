@@ -1321,12 +1321,18 @@
       if (!S.dsDraft) S.dsDraft = JSON.parse(JSON.stringify(ds.outputs || []));
       const t2 = h('table', { class: 'tbl' }, h('tr', null, h('th', { style: { width: '60px' } }, 'Aktiv'), h('th', null, 'Bildschirm'), h('th', null, 'Grafik-Ausgang'), h('th', { style: { width: '40px' } })));
       S.dsDraft.forEach((d, i) => {
-        const scr = h('select', { onchange: () => { d.displayId = scr.value; } }, ds.displays.map((x) => h('option', { value: String(x.id) }, x.label)));
+        const known = ds.displays.some((x) => String(x.id) === String(d.displayId));
+        const live = (ds.outputs || []).find((o) => o.id === d.id);
+        // Nicht angeschlossenen Bildschirm anzeigen statt still einen anderen auszuwählen
+        const opts = ds.displays.map((x) => h('option', { value: String(x.id) }, x.label));
+        if (!known) opts.unshift(h('option', { value: String(d.displayId) }, `⚠ ${d.displayName || 'Bildschirm'}${d.displaySize ? ' – ' + d.displaySize.replace('x', '×') : ''} (nicht angeschlossen)`));
+        const scr = h('select', { onchange: () => { d.displayId = scr.value; } }, opts);
         scr.value = String(d.displayId);
+        const note = live && live.connected === false ? h('div', { class: 'hint', style: { marginTop: '3px' } }, 'Wird automatisch geöffnet, sobald der Bildschirm angeschlossen ist.') : null;
         const out = h('select', { onchange: () => { d.output = out.value; } }, outputs().map((o) => h('option', { value: o.id }, `${o.id} · ${o.name}`)));
         out.value = d.output;
         t2.appendChild(h('tr', null, h('td', null, h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: d.enabled, onchange: (e) => { d.enabled = e.target.checked; } }))),
-          h('td', null, scr), h('td', null, out), h('td', null, h('button', { class: 'btn xs danger', onclick: () => { S.dsDraft.splice(i, 1); renderTab(true); } }, '✕'))));
+          h('td', null, scr, note), h('td', null, out), h('td', null, h('button', { class: 'btn xs danger', onclick: () => { S.dsDraft.splice(i, 1); renderTab(true); } }, '✕'))));
       });
       dsCard.append(t2, h('div', { class: 'row', style: { marginTop: '10px' } },
         h('button', { class: 'btn sm', onclick: () => { S.dsDraft.push({ id: 'd' + Date.now(), enabled: true, displayId: String((ds.displays.find((x) => !x.primary) || ds.displays[0] || {}).id), output: '1' }); renderTab(true); } }, '+ Bildschirm'),
