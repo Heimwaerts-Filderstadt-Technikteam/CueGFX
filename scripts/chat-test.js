@@ -73,7 +73,9 @@ ssnWs.on('connection', (c) => c.on('message', (m) => {
   check(anna && anna.avatar.endsWith('s64') && anna.badges === 'Moderator', 'Avatar (größtes Bild) + Abzeichen');
   const ben = ytm.find((m) => m.author === 'ben');
   check(ben && ben.amount === '5,00 €', 'Super Chat mit Betrag');
+  // Auf langsamen CI-Runnern dauert das Erkennen etwas länger → bis zu 10 s abwarten statt fester Zeit
   let st = srv.chat.list().find((s) => s.id === yt);
+  for (let i = 0; i < 40 && !(st.state === 'waiting' && /wartet|beendet/.test(st.status)); i++) { await wait(250); st = srv.chat.list().find((s) => s.id === yt); }
   check(/wartet|beendet/.test(st.status) && st.state === 'waiting', 'Stream-Ende erkannt → wartet: ' + st.status);
 
   const off = ex('chat.source.add', { preset: 'youtube', values: { channel: '@offline' }, enabled: true }).id;
