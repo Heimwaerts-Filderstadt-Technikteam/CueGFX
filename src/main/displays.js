@@ -18,9 +18,17 @@ class DisplayManager {
 
   displays() {
     const primary = this.screen.getPrimaryDisplay();
-    return this.screen.getAllDisplays().map((d, i) => ({
+    const all = this.screen.getAllDisplays();
+    const dup = (d) => all.filter((x) => x.label === d.label).length > 1;
+    const where = (d) => {
+      if (d.id === primary.id) return 'Hauptbildschirm';
+      const p = primary.bounds, cx = d.bounds.x + d.bounds.width / 2, cy = d.bounds.y + d.bounds.height / 2;
+      const dx = cx - (p.x + p.width / 2), dy = cy - (p.y + p.height / 2);
+      return Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'rechts vom Hauptbildschirm' : 'links vom Hauptbildschirm') : (dy > 0 ? 'unter dem Hauptbildschirm' : 'über dem Hauptbildschirm');
+    };
+    return all.map((d, i) => ({
       id: String(d.id),
-      label: `${i + 1}: ${d.label || 'Bildschirm'} – ${d.size.width}×${d.size.height}${d.id === primary.id ? ' (Hauptbildschirm)' : ''}`,
+      label: `${i + 1}: ${d.label || 'Bildschirm'} – ${d.size.width}×${d.size.height} · ${where(d)}${dup(d) ? ` (ID ${d.id})` : ''}`,
       primary: d.id === primary.id,
       bounds: d.bounds
     }));
@@ -31,22 +39,38 @@ class DisplayManager {
     return {
       available: true,
       displays: list.map(({ id, label, primary }) => ({ id, label, primary })),
-      outputs: this.config.map((c) => Object.assign({}, c, { connected: !!this.resolve(c) }))
+      outputs: this.config.map((c) => {
+        const d = this.resolve(c), w = this.windows.get(c.id);
+        let actual = '';
+        if (w && !w.win.isDestroyed()) { try { const m = this.screen.getDisplayMatching(w.win.getBounds()); actual = String(m.id); } catch (_) {} }
+        return Object.assign({}, c, { connected: !!d, actualId: actual, wrongDisplay: !!(d && actual && actual !== String(d.id)) });
+      })
     };
   }
 
-  /* Bildschirm wiederfinden: macOS vergibt IDs (v. a. bei HDMI-Adaptern/Docks) nach Neustart oft neu.
-     Reihenfolge: ID → Name + Auflösung → Name → gleiche Position/Größe → einziger Zusatzbildschirm */
+  /* Bildschirm wiederfinden. macOS vergibt IDs bei Geräten ohne Seriennummer (Videomischer, Capture,
+     HDMI-Adapter) nach einem Neustart neu – teils sogar die ID eines anderen Bildschirms. Deshalb nicht
+     blind der ID vertrauen, sondern alle gespeicherten Merkmale bewerten. */
   resolve(c) {
     const all = this.screen.getAllDisplays();
     const primary = this.screen.getPrimaryDisplay();
-    let d = all.find((x) => String(x.id) === c.displayId);
-    if (d) return d;
     const sz = (x) => `${x.size.width}x${x.size.height}`;
-    if (c.displayName) d = all.find((x) => x.label === c.displayName && sz(x) === c.displaySize) || all.find((x) => x.label === c.displayName);
-    if (!d && c.displayBounds) d = all.find((x) => x.bounds.x === c.displayBounds.x && x.bounds.y === c.displayBounds.y && x.bounds.width === c.displayBounds.width && x.bounds.height === c.displayBounds.height);
-    if (!d && c.displayPrimary === false) { const others = all.filter((x) => x.id !== primary.id); if (others.length === 1) d = others[0]; }
-    return d || null;
+    const sameBounds = (x) => c.displayBounds && x.bounds.x === c.displayBounds.x && x.bounds.y === c.displayBounds.y && x.bounds.width === c.displayBounds.width && x.bounds.height === c.displayBounds.height;
+    const nameUnique = c.displayName && all.filter((x) => x.label === c.displayName).length === 1;
+    let best = null, bestScore = 0;
+    for (const x of all) {
+      let sc = 0;
+      if (String(x.id) === c.displayId) sc += 4;
+      if (c.displayName && x.label === c.displayName) sc += nameUnique ? 3 : 1;
+      if (c.displaySize && sz(x) === c.displaySize) sc += 2;
+      if (sameBounds(x)) sc += 2;
+      if (c.displayPrimary !== undefined) sc += (x.id === primary.id) === c.displayPrimary ? 1 : -6; // Zusatzbildschirm nie auf den Hauptbildschirm legen
+      if (sc > bestScore) { best = x; bestScore = sc; }
+    }
+    if (best && bestScore >= 3) return best;
+    // Letzter Ausweg: genau ein Zusatzbildschirm vorhanden
+    if (c.displayPrimary === false) { const others = all.filter((x) => x.id !== primary.id); if (others.length === 1) return others[0]; }
+    return null;
   }
   /* Merkmale des Bildschirms mitspeichern, damit er nach einem Neustart wiedergefunden wird */
   remember(c, d) {
@@ -63,13 +87,17 @@ class DisplayManager {
   getConfig() { return JSON.parse(JSON.stringify(this.config)); }
 
   configure(list) {
+    const prev = new Map(this.config.map((c) => [c.id, c]));
     this.config = (Array.isArray(list) ? list : []).map((o) => {
       const c = { id: String(o.id || 'd' + Date.now()), enabled: o.enabled !== false, displayId: String(o.displayId || ''), output: String(o.output || '1') };
-      const all = this.screen.getAllDisplays();
-      const cur = all.find((x) => String(x.id) === c.displayId);
-      // gespeicherte Merkmale behalten; ist der Bildschirm angeschlossen, frisch übernehmen
       for (const k of ['displayName', 'displaySize', 'displayBounds', 'displayPrimary']) if (o[k] !== undefined) c[k] = o[k];
-      if (cur) this.remember(c, cur);
+      // Nur wenn in der Steuerung ein anderer Bildschirm gewählt wurde (oder der Eintrag neu ist), dessen
+      // Merkmale frisch übernehmen. Beim Programmstart NICHT der gespeicherten ID trauen – die kann
+      // inzwischen zu einem anderen Bildschirm gehören; das entscheidet resolve() anhand aller Merkmale.
+      const p = prev.get(c.id);
+      const userPicked = (p && p.displayId !== c.displayId) || (!p && o.displayName === undefined);
+      const cur = this.screen.getAllDisplays().find((x) => String(x.id) === c.displayId);
+      if (userPicked && cur) this.remember(c, cur);
       return c;
     });
     this.apply();
@@ -103,23 +131,43 @@ class DisplayManager {
         frame: false, fullscreen: !mac, backgroundColor: '#000000', show: false,
         // macOS: randloses Fenster über die ganze Fläche inkl. Menüleiste (statt Vollbild-Modus,
         // der die Menüleiste nur ausblendet, solange CueGFX vorne ist)
-        enableLargerThanScreen: mac, hasShadow: false, roundedCorners: false, resizable: false, movable: false,
+        enableLargerThanScreen: mac, hasShadow: false, roundedCorners: false, resizable: false,
         minimizable: false, maximizable: false, fullscreenable: !mac,
         skipTaskbar: true, autoHideMenuBar: true, title: `CueGFX Ausgang ${c.output}`,
         webPreferences: { backgroundThrottling: false, contextIsolation: true, sandbox: true, autoplayPolicy: 'no-user-gesture-required' }
       });
-      if (mac) {
-        win.setAlwaysOnTop(true, 'screen-saver');
-        win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
-      }
       win.setBounds(d.bounds);
       win.setMenuBarVisibility(false);
       win.loadURL(`http://127.0.0.1:${this.getPort()}/output/${encodeURIComponent(c.output)}`);
-      win.once('ready-to-show', () => { win.showInactive(); if (mac) win.setBounds(d.bounds); });
+      win.once('ready-to-show', () => {
+        win.showInactive();
+        // erst nach dem Anzeigen über die Menüleiste heben, dann Position kontrollieren und ggf. korrigieren
+        if (mac) win.setAlwaysOnTop(true, 'screen-saver');
+        this.place(win, d.id, c.output);
+      });
       win.on('closed', () => { if (this.windows.get(c.id) && this.windows.get(c.id).win === win) this.windows.delete(c.id); });
       this.windows.set(c.id, { win, key: `${c.displayId}|${c.output}` });
       this.log(`[Bildschirm] Ausgang ${c.output} → ${d.label || d.id}`);
     }
+  }
+
+  /* Sitzt das Fenster wirklich auf dem gewünschten Bildschirm? macOS verschiebt Fenster gelegentlich
+     beim Anzeigen – dann mehrfach nachsetzen. */
+  place(win, displayId, output) {
+    let n = 0;
+    const check = () => {
+      if (win.isDestroyed()) return;
+      const d = this.screen.getAllDisplays().find((x) => x.id === displayId);
+      if (!d) return;
+      const b = win.getBounds(), db = d.bounds;
+      const on = this.screen.getDisplayMatching(b).id === displayId;
+      if (!on || b.x !== db.x || b.y !== db.y || b.width !== db.width || b.height !== db.height) {
+        win.setBounds(db);
+        if (!on) this.log(`[Bildschirm] Ausgang ${output} lag auf falschem Bildschirm – korrigiert (Versuch ${n + 1})`);
+      }
+      if (++n < 5) setTimeout(check, [150, 500, 1200, 3000][n - 1]);
+    };
+    check();
   }
 
   identify() {

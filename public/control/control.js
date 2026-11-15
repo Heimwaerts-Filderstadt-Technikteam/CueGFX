@@ -1393,7 +1393,10 @@
         if (!known) opts.unshift(h('option', { value: String(d.displayId) }, `⚠ ${d.displayName || 'Bildschirm'}${d.displaySize ? ' – ' + d.displaySize.replace('x', '×') : ''} (nicht angeschlossen)`));
         const scr = h('select', { onchange: () => { d.displayId = scr.value; } }, opts);
         scr.value = String(d.displayId);
-        const note = live && live.connected === false ? h('div', { class: 'hint', style: { marginTop: '3px' } }, 'Wird automatisch geöffnet, sobald der Bildschirm angeschlossen ist.') : null;
+        const runsOn = live && live.actualId ? ds.displays.find((x) => String(x.id) === String(live.actualId)) : null;
+        const note = live && live.connected === false ? h('div', { class: 'hint', style: { marginTop: '3px' } }, 'Wird automatisch geöffnet, sobald der Bildschirm angeschlossen ist.')
+          : live && live.wrongDisplay ? h('div', { class: 'hint', style: { marginTop: '3px', color: 'var(--err, #ef4444)' } }, `⚠ Läuft gerade auf ${runsOn ? runsOn.label : 'einem anderen Bildschirm'} – wird korrigiert`)
+          : runsOn ? h('div', { class: 'hint', style: { marginTop: '3px' } }, `✓ Läuft auf ${runsOn.label.replace(/^\d+:\s*/, '')}`) : null;
         const out = h('select', { onchange: () => { d.output = out.value; } }, outputs().map((o) => h('option', { value: o.id }, `${o.id} · ${o.name}`)));
         out.value = d.output;
         t2.appendChild(h('tr', null, h('td', null, h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: d.enabled, onchange: (e) => { d.enabled = e.target.checked; } }))),
