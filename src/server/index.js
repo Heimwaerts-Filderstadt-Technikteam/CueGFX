@@ -1472,6 +1472,7 @@ ${sec}${print ? '<script>setTimeout(() => print(), 400)</script>' : ''}</body></
       const a = await this._args(req, url);
       if (parts[1] === 'config') { ds.configure(a.outputs || []); this.store.config.displayOutputs = ds.getConfig(); this.store.saveConfig(); this._pushHardware(); return this._json(res, ds.info()); }
       if (parts[1] === 'identify') { ds.identify(); return this._json(res, { ok: true }); }
+      if (parts[1] === 'pause') { const on = a.on === undefined ? undefined : !!a.on; if (this.hooks.displaysPause) this.hooks.displaysPause(on); else ds.pause(on); this._pushHardware(); return this._json(res, ds.info()); }
     }
     if (route === 'open-window' && this.hooks.openWindow) { const a = await this._args(req, url); this.hooks.openWindow(a.path || '/output/1'); return this._json(res, { ok: true }); }
 

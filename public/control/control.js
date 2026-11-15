@@ -1405,6 +1405,7 @@
       dsCard.append(t2, h('div', { class: 'row', style: { marginTop: '10px' } },
         h('button', { class: 'btn sm', onclick: () => { S.dsDraft.push({ id: 'd' + Date.now(), enabled: true, displayId: String((ds.displays.find((x) => !x.primary) || ds.displays[0] || {}).id), output: '1' }); renderTab(true); } }, '+ Bildschirm'),
         h('button', { class: 'btn sm', onclick: () => api('/api/displays/identify', { method: 'POST' }) }, 'Bildschirme identifizieren'),
+        h('button', { class: 'btn sm' + (ds.paused ? ' primary' : ''), title: 'Notausgang, auch per Tastenkürzel ⌘/Strg + ⌥/Alt + ⇧ + B', onclick: () => api('/api/displays/pause', { method: 'POST', body: JSON.stringify({ on: !ds.paused }) }) }, ds.paused ? '▶ Bildschirm-Ausgänge fortsetzen' : '⏸ Pausieren'),
         h('span', { class: 'grow' }),
         h('button', { class: 'btn primary sm', onclick: async () => { try { await api('/api/displays/config', { method: 'POST', body: JSON.stringify({ outputs: S.dsDraft }) }); S.dsDraft = null; toast('Bildschirm-Ausgänge übernommen', 'ok'); } catch (e) { toast(e.message, 'err'); } } }, 'Übernehmen')));
     }

@@ -76,5 +76,15 @@ wins[0].b = { x: 0, y: 0, width: 1920, height: 1080 }; // „verrutscht“ auf d
 check(dmE.info().outputs[0].wrongDisplay === true, 'Falscher Bildschirm wird erkannt und in der Steuerung gemeldet');
 wins[0].ready();
 check(wins[0].b.x === 1920 && dmE.info().outputs[0].wrongDisplay === false, 'Fenster wird nach dem Anzeigen auf den richtigen Bildschirm zurückgesetzt');
+// Notausgang: pausieren schließt alle Ausgangsfenster, fortsetzen öffnet sie wieder
+dmE.pause(true);
+check(wins.every((w) => w.dead) && dmE.info().paused === true, 'Pausieren schließt alle Bildschirm-Ausgänge');
+wins.length = 0; dmE.pause(false);
+check(wins.length === 1 && !wins[0].dead && dmE.info().paused === false, 'Fortsetzen öffnet sie wieder');
+// Hauptbildschirm bewusst gewählt: Fenster liegt NICHT über allem (Steuerung bleibt erreichbar)
+wins.length = 0;
+const dmF = new DisplayManager({ BrowserWindow: FakeWin, screen: mkScreen([disp(1, 'Main', 0, 1920, 1080)]), getPort: () => 4001, log: () => {} });
+dmF.configure([{ id: 'x', enabled: true, displayId: '1', output: '1' }]); wins[0].ready();
+check(wins[0].top === null, 'Auf dem Hauptbildschirm keine „immer oben“-Ebene – Steuerung bleibt per Cmd+Tab erreichbar');
 console.log(`\n${ok} bestanden, ${bad} fehlgeschlagen`);
 process.exit(bad ? 1 : 0);

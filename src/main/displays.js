@@ -10,6 +10,7 @@ class DisplayManager {
     this.log = log || console.log;
     this.config = [];
     this.windows = new Map();
+    this.paused = false; // Notausgang: alle Bildschirm-Ausgänge vorübergehend schließen
     const re = () => this.apply();
     screen.on('display-added', re);
     screen.on('display-removed', re);
@@ -37,7 +38,7 @@ class DisplayManager {
   info() {
     const list = this.displays();
     return {
-      available: true,
+      available: true, paused: this.paused,
       displays: list.map(({ id, label, primary }) => ({ id, label, primary })),
       outputs: this.config.map((c) => {
         const d = this.resolve(c), w = this.windows.get(c.id);
@@ -103,8 +104,16 @@ class DisplayManager {
     this.apply();
   }
 
+  pause(on) {
+    this.paused = on === undefined ? !this.paused : !!on;
+    this.log(`[Bildschirm] Ausgänge ${this.paused ? 'pausiert' : 'fortgesetzt'}`);
+    this.apply();
+    return this.paused;
+  }
+
   apply() {
     const mac = process.platform === 'darwin';
+    if (this.paused) { this.closeAll(); return; }
     const wanted = new Map();
     let changed = false;
     for (const c of this.config) {
@@ -141,8 +150,9 @@ class DisplayManager {
       win.loadURL(`http://127.0.0.1:${this.getPort()}/output/${encodeURIComponent(c.output)}`);
       win.once('ready-to-show', () => {
         win.showInactive();
-        // erst nach dem Anzeigen über die Menüleiste heben, dann Position kontrollieren und ggf. korrigieren
-        if (mac) win.setAlwaysOnTop(true, 'screen-saver');
+        // erst nach dem Anzeigen über die Menüleiste heben – aber nur auf Zusatzbildschirmen, damit die
+        // Steuerung auf dem Hauptbildschirm immer erreichbar bleibt (Cmd+Tab / Dock)
+        if (mac && d.id !== this.screen.getPrimaryDisplay().id) win.setAlwaysOnTop(true, 'screen-saver');
         this.place(win, d.id, c.output);
       });
       win.on('closed', () => { if (this.windows.get(c.id) && this.windows.get(c.id).win === win) this.windows.delete(c.id); });

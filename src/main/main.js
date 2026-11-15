@@ -1,6 +1,6 @@
 'use strict';
 /* CueGFX – Desktop-App (macOS, Windows, Linux) */
-const { app, BrowserWindow, Menu, shell, screen, dialog, nativeTheme, session } = require('electron');
+const { app, BrowserWindow, Menu, shell, screen, dialog, nativeTheme, session, globalShortcut } = require('electron');
 const path = require('path');
 const { CueServer } = require('../server/index');
 const { DeckLinkManager } = require('../decklink/manager');
@@ -31,6 +31,7 @@ async function startServer() {
       openWindow: (p) => openOutputWindow(p),
       get decklink() { return decklink; },
       get displays() { return displays; },
+      displaysPause: (on) => toggleDisplayPause(on),
       get ndi() { return ndi; },
       mainWindow: () => controlWin,
       // HTML → PDF (A4, mit Seitenzahlen) über ein unsichtbares Fenster
@@ -128,7 +129,10 @@ function buildMenu() {
       ]
     },
     { label: 'Bearbeiten', submenu: [{ role: 'undo', label: 'Rückgängig' }, { role: 'redo', label: 'Wiederholen' }, { type: 'separator' }, { role: 'cut', label: 'Ausschneiden' }, { role: 'copy', label: 'Kopieren' }, { role: 'paste', label: 'Einfügen' }, { role: 'selectAll', label: 'Alles auswählen' }] },
-    { label: 'Ausgänge', submenu: outputsMenu() },
+    { label: 'Ausgänge', submenu: outputsMenu().concat([{ type: 'separator' }, {
+      label: displays && displays.paused ? 'Bildschirm-Ausgänge fortsetzen' : 'Bildschirm-Ausgänge pausieren (Notausgang)',
+      accelerator: 'CommandOrControl+Alt+Shift+B', registerAccelerator: false, click: () => toggleDisplayPause()
+    }]) },
     {
       label: 'Ansicht',
       submenu: [
@@ -147,6 +151,17 @@ function buildMenu() {
     }
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+/* Notausgang: alle Bildschirm-Ausgänge schließen bzw. wieder öffnen – funktioniert systemweit,
+   auch wenn ein Ausgangsfenster die Steuerung verdeckt */
+const PAUSE_KEY = 'CommandOrControl+Alt+Shift+B';
+function toggleDisplayPause(on) {
+  if (!displays) return;
+  const paused = displays.pause(on);
+  try { server._pushHardware(); } catch (_) {}
+  buildMenu();
+  if (paused && controlWin && !controlWin.isDestroyed()) { controlWin.show(); controlWin.focus(); }
 }
 
 app.whenReady().then(async () => {
@@ -196,6 +211,8 @@ app.whenReady().then(async () => {
     if (sig !== buildMenu.sig) { buildMenu.sig = sig; buildMenu(); }
   });
   createControlWindow();
+  try { if (!globalShortcut.register(PAUSE_KEY, () => toggleDisplayPause())) log('Tastenkürzel', PAUSE_KEY, 'ist belegt'); } catch (e) { log('Tastenkürzel:', e.message); }
+  app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch (_) {} });
   app.on('activate', () => { if (!controlWin) createControlWindow(); });
 });
 

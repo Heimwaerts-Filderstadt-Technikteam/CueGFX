@@ -10,12 +10,13 @@ const FDL = global.__fakeDL || (require(process.env.CUEGFX_DECKLINK_ADDON), glob
 class FakeWin { constructor() { this.webContents = { on() {}, setAudioMuted() {}, setFrameRate() {}, invalidate() {}, capturePage: async () => null }; this._d = false; } setContentSize() {} loadURL() {} isDestroyed() { return this._d; } destroy() { this._d = true; } }
 let ok = 0, bad = 0; const check = (c, m) => { console.log(c ? '  ✓' : '  ✗', m); c ? ok++ : bad++; };
 (async () => {
+  const PORT = 46000 + Math.floor(Math.random() * 3000);
   const dir = path.join(require('os').tmpdir(), 'cuegfx-dltest-' + process.pid); fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
   // alte Einstellungen der entfernten Funktion „SDI teilen“
-  fs.writeFileSync(dir + '/config.json', JSON.stringify({ audiencePort: 0, sdiShare: { auto: true, delay: 5 }, decklinkOutputs: [{ id: 'old', deviceKey: 'dev0', share: true }] }));
+  fs.writeFileSync(dir + '/config.json', JSON.stringify({ audiencePort: 0, stagePort: 0, sdiShare: { auto: true, delay: 5 }, decklinkOutputs: [{ id: 'old', deviceKey: 'dev0', share: true }] }));
   let s;
-  const dl = new DeckLinkManager({ BrowserWindow: FakeWin, getPort: () => 47980, getProject: () => s.project, log: () => {} });
-  s = new CueServer({ dataDir: dir, port: 47980, hooks: { desktop: true, get decklink() { return dl; } } }); await s.start();
+  const dl = new DeckLinkManager({ BrowserWindow: FakeWin, getPort: () => PORT, getProject: () => s.project, log: () => {} });
+  s = new CueServer({ dataDir: dir, port: PORT, hooks: { desktop: true, get decklink() { return dl; } } }); await s.start();
   check(s.store.config.sdiShare === undefined && !('share' in s.store.config.decklinkOutputs[0]), 'Alte Teilen-Einstellungen werden aufgeräumt');
   await dl.configure([{ id: 'dlA', deviceKey: 'dev0', modeId: 'Hp50', output: '2', share: true }]);
   check(dl.running.has('dlA') && FDL.holder, 'Ausgang läuft, Gerät belegt');
@@ -24,7 +25,7 @@ let ok = 0, bad = 0; const check = (c, m) => { console.log(c ? '  ✓' : '  ✗'
     let err = ''; try { s.exec(c, {}); } catch (e) { err = e.message; }
     check(/Unbekannt|unknown/i.test(err), `Befehl ${c} entfernt`);
   }
-  const r = await fetch('http://127.0.0.1:47980/api/decklink/share', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"action":"release"}' });
+  const r = await fetch(`http://127.0.0.1:${PORT}/api/decklink/share`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"action":"release"}' });
   check(r.status >= 400 && dl.running.has('dlA'), 'REST /api/decklink/share entfernt, Ausgang läuft weiter');
   await dl.configure([{ id: 'dlA', deviceKey: 'dev0', modeId: 'Hp50', output: '2', enabled: false }]);
   check(!dl.running.has('dlA') && !FDL.holder, 'Deaktivieren gibt das Gerät frei');
