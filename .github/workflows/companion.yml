@@ -87,4 +87,6 @@ jobs:
 
             **Installation:** In Companion unter *Modules* → *Import module package* die Datei `cuegfx-companion-${{ steps.ver.outputs.version }}.tgz` auswählen. Danach unter *Connections* „CueGFX“ hinzufügen und IP/Port des CueGFX-Rechners eintragen (Standard-Port 4001).
 
+            **Mac / Safari:** Safari entpackt `.tgz`-Dateien automatisch und macht daraus eine `.tar`, die Companion nicht annimmt. Entweder mit Chrome/Firefox herunterladen, in Safari unter *Einstellungen → Allgemein* „Sichere Dateien nach dem Laden öffnen“ ausschalten, oder die `.tar` im Terminal wieder packen: `gzip -c cuegfx-companion-${{ steps.ver.outputs.version }}.tar > cuegfx-companion-${{ steps.ver.outputs.version }}.tgz`
+
             Der Paket-Import gibt es ab Companion 4.0. Bei Companion 3.x das Paket entpacken und den Ordner als Entwickler-Modul einbinden (*Settings → Developer modules path*).
